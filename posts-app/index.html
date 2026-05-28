@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumae Posts - Социальная сеть постов</title>
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;700;800;900&family=Inter:wght@400;500;600&family=Syne:wght@400;600;700;800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --p: #7c3aed;
+            --pl: #8b5cf6;
+            --ps: #ede9fe;
+            --pm: #ddd6fe;
+            --bk: #09090b;
+            --g7: #3f3f46;
+            --g5: #71717a;
+            --g1: #f4f4f5;
+            --g05: #fafafa;
+            --r: 22px;
+            --rs: 12px;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f7f5ef 0%, #f2efe8 50%, #f8f7f4 100%);
+            color: var(--bk);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* ━━━ HEADER ━━━ */
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 20px 0;
+        }
+
+        header h1 {
+            font-family: 'Unbounded', sans-serif;
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--p) 0%, var(--pl) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            color: var(--g5);
+            font-size: 14px;
+        }
+
+        /* ━━━ ФОРМА СОЗДАНИЯ ПОСТА ━━━ */
+        .post-form {
+            background: white;
+            border-radius: var(--r);
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            margin-bottom: 30px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--bk);
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: var(--rs);
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--p);
+            box-shadow: 0 0 0 3px var(--ps);
+        }
+
+        .form-group textarea::placeholder,
+        .form-group input::placeholder {
+            color: var(--g5);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--rs);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--p) 0%, var(--pl) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(124, 58, 237, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--g1);
+            color: var(--bk);
+        }
+
+        .btn-secondary:hover {
+            background: #e5e7eb;
+        }
+
+        /* ━━━ ЛЕНТА ПОСТОВ ━━━ */
+        .posts-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .post {
+            background: white;
+            border-radius: var(--r);
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .post-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .post-author {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .post-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--p) 0%, var(--pl) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .post-author-info h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--bk);
+            margin-bottom: 4px;
+        }
+
+        .post-time {
+            font-size: 12px;
+            color: var(--g5);
+        }
+
+        .post-delete {
+            background: none;
+            border: none;
+            color: var(--g5);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            transition: color 0.2s;
+        }
+
+        .post-delete:hover {
+            color: #ef4444;
+        }
+
+        .post-content {
+            margin-bottom: 16px;
+            line-height: 1.6;
+            color: var(--bk);
+        }
+
+        .post-image,
+        .post-video {
+            width: 100%;
+            border-radius: var(--rs);
+            margin: 16px 0;
+            max-height: 400px;
+            object-fit: cover;
+        }
+
+        .post-footer {
+            display: flex;
+            gap: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #f3f4f6;
+        }
+
+        .post-action {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--g5);
+            font-size: 13px;
+            transition: all 0.2s;
+            background: none;
+            border: none;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        .post-action:hover {
+            color: var(--p);
+        }
+
+        .post-action.liked {
+            color: #ef4444;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--g5);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--g5);
+            padding: 20px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--ps);
+            border-top-color: var(--p);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 12px 16px;
+            border-radius: var(--rs);
+            margin-bottom: 16px;
+            border: 1px solid #fecaca;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 8px 16px;
+            background: var(--g1);
+            border-radius: var(--rs);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--bk);
+            transition: all 0.2s;
+        }
+
+        .file-input-label:hover {
+            background: #e5e7eb;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .image-preview {
+            margin-top: 12px;
+            width: 100%;
+            max-height: 200px;
+            border-radius: var(--rs);
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>✨ Lumae Posts</h1>
+            <p>Поделитесь своими мыслями с миром</p>
+        </header>
+
+        <!-- Форма создания поста -->
+        <div class="post-form">
+            <div id="error-message"></div>
+            
+            <div class="form-group">
+                <label for="username">Ваше имя</label>
+                <input type="text" id="username" placeholder="Введите ваше имя" value="">
+            </div>
+
+            <div class="form-group">
+                <label for="post-text">Ваш пост</label>
+                <textarea id="post-text" placeholder="Что вы думаете? 💭"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>Добавить медиа</label>
+                <div style="display: flex; gap: 10px;">
+                    <label class="file-input-label">
+                        🖼️ Фото
+                        <input type="file" id="image-input" accept="image/*">
+                    </label>
+                    <label class="file-input-label">
+                        🎬 Видео
+                        <input type="file" id="video-input" accept="video/*">
+                    </label>
+                </div>
+                <img id="image-preview" class="image-preview" style="display: none;">
+                <video id="video-preview" class="image-preview" style="display: none;" controls></video>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-secondary" onclick="clearForm()">Очистить</button>
+                <button class="btn btn-primary" onclick="createPost()">Опубликовать ✨</button>
+            </div>
+        </div>
+
+        <!-- Лента постов -->
+        <div id="posts-container">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Загрузка постов...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8000/api";
+        let likedPosts = new Set(JSON.parse(localStorage.getItem("likedPosts") || "[]"));
+        let imageData = null;
+        let videoData = null;
+
+        // Загрузить посты при открытии страницы
+        window.addEventListener("load", () => {
+            loadPosts();
+            setInterval(loadPosts, 3000); // Обновляем каждые 3 секунды
+        });
+
+        // Обработка загрузки фото
+        document.getElementById("image-input").addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imageData = event.target.result;
+                    const preview = document.getElementById("image-preview");
+                    preview.src = imageData;
+                    preview.style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Обработка загрузки видео
+        document.getElementById("video-input").addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    videoData = event.target.result;
+                    const preview = document.getElementById("video-preview");
+                    preview.src = videoData;
+                    preview.style.display = "block";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function clearForm() {
+            document.getElementById("username").value = "";
+            document.getElementById("post-text").value = "";
+            imageData = null;
+            videoData = null;
+            document.getElementById("image-input").value = "";
+            document.getElementById("video-input").value = "";
+            document.getElementById("image-preview").style.display = "none";
+            document.getElementById("video-preview").style.display = "none";
+        }
+
+        async function createPost() {
+            const username = document.getElementById("username").value.trim();
+            const text = document.getElementById("post-text").value.trim();
+            const errorDiv = document.getElementById("error-message");
+
+            errorDiv.innerHTML = "";
+
+            if (!username) {
+                errorDiv.innerHTML = '<div class="error">❌ Введите ваше имя</div>';
+                return;
+            }
+
+            if (!text) {
+                errorDiv.innerHTML = '<div class="error">❌ Напишите пост</div>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/posts`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        username,
+                        text,
+                        image: imageData,
+                        video: videoData,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error("Ошибка при создании поста");
+                }
+
+                clearForm();
+                loadPosts();
+            } catch (error) {
+                console.error("Ошибка:", error);
+                errorDiv.innerHTML = '<div class="error">❌ Ошибка при публикации поста</div>';
+            }
+        }
+
+        async function loadPosts() {
+            try {
+                const response = await fetch(`${API_URL}/posts`);
+                const posts = await response.json();
+
+                const container = document.getElementById("posts-container");
+
+                if (posts.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📝</div>
+                            <p>Пока постов нет. Напишите первый! 👇</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = posts.map(post => `
+                    <div class="post">
+                        <div class="post-header">
+                            <div class="post-author">
+                                <div class="post-avatar">${post.username.charAt(0).toUpperCase()}</div>
+                                <div class="post-author-info">
+                                    <h3>${escapeHtml(post.username)}</h3>
+                                    <span class="post-time">${formatTime(post.created_at)}</span>
+                                </div>
+                            </div>
+                            <button class="post-delete" onclick="deletePost(${post.id})">✕</button>
+                        </div>
+                        
+                        <div class="post-content">${escapeHtml(post.text)}</div>
+
+                        ${post.image ? `<img src="${post.image}" class="post-image" alt="Фото">` : ""}
+                        ${post.video ? `<video src="${post.video}" class="post-video" controls></video>` : ""}
+
+                        <div class="post-footer">
+                            <button class="post-action ${likedPosts.has(post.id) ? "liked" : ""}" 
+                                    onclick="likePost(${post.id})">
+                                ${likedPosts.has(post.id) ? "❤️" : "🤍"} 
+                                <span>${post.likes}</span>
+                            </button>
+                        </div>
+                    </div>
+                `).join("");
+            } catch (error) {
+                console.error("Ошибка при загрузке постов:", error);
+                document.getElementById("posts-container").innerHTML = `
+                    <div class="error">⚠️ Ошибка подключения к серверу. Убедитесь, что сервер запущен на http://localhost:8000</div>
+                `;
+            }
+        }
+
+        async function likePost(postId) {
+            try {
+                await fetch(`${API_URL}/posts/${postId}/like`, {
+                    method: "POST",
+                });
+
+                if (likedPosts.has(postId)) {
+                    likedPosts.delete(postId);
+                } else {
+                    likedPosts.add(postId);
+                }
+
+                localStorage.setItem("likedPosts", JSON.stringify([...likedPosts]));
+                loadPosts();
+            } catch (error) {
+                console.error("Ошибка при лайке:", error);
+            }
+        }
+
+        async function deletePost(postId) {
+            if (!confirm("Вы уверены, что хотите удалить этот пост?")) return;
+
+            try {
+                await fetch(`${API_URL}/posts/${postId}`, {
+                    method: "DELETE",
+                });
+                loadPosts();
+            } catch (error) {
+                console.error("Ошибка при удалении:", error);
+            }
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return "только что";
+            if (diffMins < 60) return `${diffMins}м назад`;
+            if (diffHours < 24) return `${diffHours}ч назад`;
+            if (diffDays < 7) return `${diffDays}д назад`;
+
+            return date.toLocaleDateString("ru-RU");
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement("div");
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
