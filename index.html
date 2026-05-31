@@ -14489,6 +14489,15 @@ async function loadPostMediaFile(event){
   const file=event.target?.files?.[0];
   const label=document.getElementById('postFileName');
   if(!file) return;
+  
+  // Проверка размера файла (максимум 15MB - будет ~20MB в Base64)
+  const MAX_SIZE = 15 * 1024 * 1024;
+  if(file.size > MAX_SIZE) {
+    if(label) label.textContent = 'Файл слишком большой (макс 15MB)';
+    event.target.value = '';
+    return;
+  }
+  
   if(file.type.startsWith('video/')&&!(await lumaeValidateVideoDuration(file))){
     if(label) label.textContent='Видео должно быть до 1 часа';
     event.target.value='';
@@ -14507,6 +14516,15 @@ async function loadPostTrackFile(event){
   const file=event.target?.files?.[0];
   const label=document.getElementById('postTrackName');
   if(!file) return;
+  
+  // Проверка размера файла (максимум 15MB - будет ~20MB в Base64)
+  const MAX_SIZE = 15 * 1024 * 1024;
+  if(file.size > MAX_SIZE) {
+    if(label) label.textContent = 'Файл слишком большой (макс 15MB)';
+    event.target.value = '';
+    return;
+  }
+  
   if(!file.type.startsWith('audio/')){
     if(label) label.textContent='Нужен аудиофайл';
     event.target.value='';
@@ -14579,19 +14597,28 @@ async function createPost(){
       });
       savedToApi=true;
     }catch(apiError){
+      console.error('API post error:',apiError);
+      const errorMsg = apiError?.message || 'Unknown error';
+      const errorStatus = apiError?.status || 'No status';
+      console.error(`POST failed: ${errorStatus} - ${errorMsg}`);
       showToast('Post was not saved','The server returned an error. Please try again after signing in.');
-      return;
-      if(postMediaFile){
-        try{
-          mediaValue=await lumaeSaveMediaFile(postMediaFile,'post');
-          resolvedMediaType=postMediaFile.type.startsWith('video/')?'video':'image';
-        }catch(localMediaError){}
+    }
+  }
+  if(!savedToApi){
+    if(postMediaFile){
+      try{
+        mediaValue=await lumaeSaveMediaFile(postMediaFile,'post');
+        resolvedMediaType=postMediaFile.type.startsWith('video/')?'video':'image';
+      }catch(localMediaError){
+        console.error('Local media error:',localMediaError);
       }
-      if(postTrackFile){
-        try{
-          trackValue=await lumaeSaveMediaFile(postTrackFile,'post-track');
-          trackName=postTrackFile.name||trackName||'Трек Lumae';
-        }catch(localTrackError){}
+    }
+    if(postTrackFile){
+      try{
+        trackValue=await lumaeSaveMediaFile(postTrackFile,'post-track');
+        trackName=postTrackFile.name||trackName||'Трек Lumae';
+      }catch(localTrackError){
+        console.error('Local track error:',localTrackError);
       }
     }
   }

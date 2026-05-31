@@ -12,9 +12,28 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: '100mb' }));
-app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+// Error handler for body-parser
+app.use((error, req, res, next) => {
+  if (error instanceof SyntaxError && 'body' in error) {
+    return res.status(413).json({ error: 'Request payload too large or invalid JSON' });
+  }
+  if (error.status === 413) {
+    return res.status(413).json({ error: 'Request payload too large' });
+  }
+  next();
+});
+
 app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Explicit media directory handlers
+['grdh', 'csdkjhv', 'fvhdfzbvfjbs', 'uploads'].forEach(dir => {
+  const dirPath = path.join(__dirname, dir);
+  app.use(`/${dir}`, express.static(dirPath));
+});
 
 // Database setup
 const db = new sqlite3.Database(path.join(__dirname, 'profiles.db'), (err) => {
