@@ -12227,6 +12227,71 @@ body.post-comments-open .app-dock{
     min-width:92px!important;
   }
 }
+.nav-actions{
+  margin-right:16px;
+}
+@media(max-width:640px){
+  .nav-actions{
+    margin-right:8px!important;
+  }
+  .nav-menu{
+    position:fixed!important;
+    top:64px!important;
+    left:12px!important;
+    right:12px!important;
+    width:auto!important;
+    max-width:none!important;
+    max-height:calc(100dvh - 88px);
+    overflow:auto;
+    transform:none!important;
+  }
+}
+.post-reco-strip{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border-radius:18px;
+  background:#fff;
+  border:1px solid rgba(17,24,39,.08);
+  color:#111827;
+  font-size:13px;
+  font-weight:900;
+}
+.post-reco-strip span{
+  color:#64748b;
+  font-size:12px;
+  font-weight:800;
+}
+.post-reco-pill{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  padding:0 9px;
+  border-radius:999px;
+  background:#eef6ff;
+  color:#0b79bd;
+  font-size:11px;
+  font-weight:900;
+}
+.posts-empty-state{
+  padding:22px 16px;
+  border-radius:20px;
+  background:#fff;
+  border:1px solid rgba(17,24,39,.08);
+  color:#64748b;
+  text-align:center;
+  font-size:13px;
+  line-height:1.55;
+  font-weight:800;
+}
+.posts-empty-state strong{
+  display:block;
+  margin-bottom:6px;
+  color:#111827;
+  font-size:15px;
+}
 </style>
 </head>
 <body>
@@ -12296,7 +12361,7 @@ body.post-comments-open .app-dock{
   <div class="hero-shell">
     <div class="hero-content">
       <video class="hero-bg-video" autoplay muted loop playsinline>
-        <source src="grdh/ФОН.mp4" type="video/mp4">
+        <source src="grdh/фон.mp4" type="video/mp4">
       </video>
       <div class="hero-topbar">
         <div class="hero-status-card">
@@ -13419,7 +13484,9 @@ let postTrackPayload='';
 let postTrackFile=null;
 let postTrackName='';
 let activePostMenuId=null;
+let lumaeMigratingLocalPosts=false;
 const lumaeLocalPostsKey='lumae.posts.local';
+const lumaeViewedPostsKey='lumae.posts.viewed';
 const lumaeMediaDBName='lumae.media.v1';
 const lumaeMediaStoreName='media';
 const lumaeLocalMediaPrefix='lumae-media:';
@@ -13536,6 +13603,12 @@ function navToMusic(){
 function authHeaders(){
   return lumaeAuth?.token?{'Authorization':'Bearer '+lumaeAuth.token}:{};
 }
+function lumaeClearInvalidAuth(){
+  if(!lumaeAuth) return;
+  lumaeAuth=null;
+  localStorage.removeItem('lumae.auth');
+  updateAuthUI();
+}
 function lumaeIsLocalMediaRef(value){
   return typeof value==='string'&&value.startsWith(lumaeLocalMediaPrefix);
 }
@@ -13649,6 +13722,17 @@ function lumaeFileToDataUrl(file){
     reader.onerror=()=>reject(reader.error||new Error('Could not read file'));
     reader.readAsDataURL(file);
   });
+}
+async function lumaeMediaRefToServerValue(value){
+  if(!lumaeIsLocalMediaRef(value)) return value||'';
+  try{
+    const objectUrl=await lumaeGetMediaObjectUrl(value);
+    if(!objectUrl) return '';
+    const blob=await fetch(objectUrl).then(response=>response.blob());
+    return await lumaeFileToDataUrl(blob);
+  }catch(error){
+    return '';
+  }
 }
 async function lumaeStoreDataUrl(dataUrl,scope){
   if(!/^data:(image|video|audio)\//i.test(String(dataUrl||''))) return dataUrl;
@@ -13807,7 +13891,7 @@ async function submitAuth(){
           body:JSON.stringify(payload)
         });
       }catch(apiError){
-        data=createLocalAuth(payload);
+        throw apiError;
       }
     }else{
       data=createLocalAuth(payload);
@@ -14084,16 +14168,24 @@ function usersV8SafeJSONParse(raw,fallback){
     return fallback;
   }
 }
+const lumaeProductionApiUrl='https://my-site4.onrender.com';
 const apiBaseUrl = (() => {
   if (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) {
     return process.env.REACT_APP_API_URL;
   }
-  const stored = localStorage.getItem('lumae.api.url');
-  if (stored) return stored;
+  const params = new URLSearchParams(location.search);
+  const apiFromUrl = params.get('api');
+  if (/^https:\/\/[a-z0-9.-]+$/i.test(apiFromUrl||'')) {
+    localStorage.setItem('lumae.api.url',apiFromUrl.replace(/\/$/,''));
+    return apiFromUrl.replace(/\/$/,'');
+  }
   if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
     return 'http://localhost:3000';
   }
-  if (location.hostname === 'lumaee.netlify.app') return '';
+  if (location.hostname.endsWith('.onrender.com')) return '';
+  if (location.hostname === 'lumaee.netlify.app') return lumaeProductionApiUrl;
+  const stored = localStorage.getItem('lumae.api.url');
+  if (stored) return stored.replace(/\/$/,'');
   return '';
 })();
 
@@ -14113,7 +14205,14 @@ async function usersV8FetchJSON(url,options){
     headers:{'Content-Type':'application/json',...authHeaders(),...(options?.headers||{})}
   });
   const data=await response.json().catch(()=>null);
-  if(!response.ok) throw new Error(data?.error||'Request failed');
+  if(!response.ok){
+    const error=new Error(data?.error||'Request failed');
+    error.status=response.status;
+    if(response.status===401&&!String(url).startsWith('/api/auth/')){
+      lumaeClearInvalidAuth();
+    }
+    throw error;
+  }
   return data;
 }
 async function usersV8RefreshPublicProfiles(){
@@ -14133,14 +14232,45 @@ async function usersV8RefreshPublicProfiles(){
 async function usersV8SaveProfileToServer(profile){
   if(!usersV8HasApi()) return false;
   try{
+    const serverProfile=await usersV8ProfilePayloadForServer(profile);
     await usersV8FetchJSON('/api/profiles',{
       method:'POST',
-      body:JSON.stringify({profile})
+      body:JSON.stringify({profile:serverProfile})
     });
     return true;
   }catch(error){
     return false;
   }
+}
+async function usersV8ProfilePayloadForServer(profile){
+  const copy={...profile};
+  for(const key of ['bannerImgSrc','bannerVidSrc','avaImgSrc','avaVidSrc']){
+    if(copy[key]) copy[key]=await lumaeMediaRefToServerValue(copy[key]);
+  }
+  return copy;
+}
+async function usersV8RepairOwnProfileMediaOnServer(){
+  if(!usersV8HasApi()) return false;
+  const profile=usersV8SavedProfiles?.[0];
+  if(!profile) return false;
+  const mediaKeys=['bannerImgSrc','bannerVidSrc','avaImgSrc','avaVidSrc'];
+  const localRefs=mediaKeys.map(key=>profile[key]).filter(value=>lumaeIsLocalMediaRef(value));
+  if(!localRefs.length) return false;
+  const repairKey='lumae.profile.media.synced.'+profile.id;
+  const repairSignature=localRefs.join('|');
+  if(localStorage.getItem(repairKey)===repairSignature) return false;
+  const serverProfile=await usersV8ProfilePayloadForServer(profile);
+  const convertedLocalRefs=mediaKeys.filter(key=>lumaeIsLocalMediaRef(profile[key]));
+  const allConverted=convertedLocalRefs.every(key=>/^data:(image|video)\//i.test(serverProfile[key]||''));
+  if(!allConverted) return false;
+  await usersV8FetchJSON('/api/profiles',{
+    method:'POST',
+    body:JSON.stringify({profile:serverProfile})
+  });
+  localStorage.setItem(repairKey,repairSignature);
+  await usersV8RefreshPublicProfiles();
+  showToast('Профиль обновлён','Аватар и фон отправлены на общий сервер Lumae.');
+  return true;
 }
 function postTime(value){
   const date=value?new Date(value):new Date();
@@ -14174,6 +14304,13 @@ function postAuthorPayload(){
     authorProfileId:profile.id||''
   };
 }
+async function postAuthorPayloadForServer(){
+  const payload=postAuthorPayload();
+  if(payload.authorAvatar){
+    payload.authorAvatar=await lumaeMediaRefToServerValue(payload.authorAvatar);
+  }
+  return payload;
+}
 function postAvatarHTML(post){
   const avatar=post.authorAvatar||'';
   const name=post.authorName||'Lumae';
@@ -14186,46 +14323,107 @@ function postAvatarHTML(post){
   return usersV8EscapeHTML((name||'L')[0]).toUpperCase();
 }
 function postViews(post){
-  const base=Number(post.views||0);
-  if(base) return base;
-  const seed=String(post.id||post.createdAt||'post').split('').reduce((sum,char)=>sum+char.charCodeAt(0),0);
-  return 24+(seed%176);
+  return Number(post.views||0);
 }
 function defaultPosts(){
-  return [{
-    id:'demo-post',
-    authorName:'MuMu Player',
-    authorHandle:'mumu',
-    body:'Пример поста канала: сюда можно добавить новость, фото, видео или короткий анонс для людей в Lumae.',
-    mediaUrl:'csdkjhv/IMG_3336.MP4',
-    mediaType:'video',
-    createdAt:new Date().toISOString(),
-    likes:1,
-    views:128,
-    comments:[]
-  }];
+  return [];
+}
+function isLumaeDemoPost(post){
+  return post?.id==='demo-post'||(post?.authorName==='MuMu Player'&&String(post?.body||'').startsWith('Пример поста'));
+}
+function lumaeRecommendationScore(post){
+  const created=post?.createdAt?new Date(post.createdAt).getTime():0;
+  const ageHours=created?Math.max(1,(Date.now()-created)/36e5):720;
+  const activity=Number(post?.likes||0)*4+Number(post?.views||0)*0.35+(post?.comments||[]).length*5;
+  const mediaBoost=post?.mediaUrl?12:0;
+  const trackBoost=post?.trackUrl?6:0;
+  return activity+mediaBoost+trackBoost+(48/ageHours);
+}
+function lumaeRecommendedPosts(posts){
+  return (Array.isArray(posts)?posts:[])
+    .filter(post=>!isLumaeDemoPost(post))
+    .sort((a,b)=>lumaeRecommendationScore(b)-lumaeRecommendationScore(a));
+}
+async function migrateLocalPostsToServer(){
+  if(lumaeMigratingLocalPosts||!usersV8HasApi()||!lumaeAuth?.token||String(lumaeAuth.token).startsWith('LOCAL-')) return false;
+  const posts=readLocalPosts();
+  if(!posts.length) return false;
+  lumaeMigratingLocalPosts=true;
+  let migrated=0;
+  try{
+    for(const post of posts){
+      const mediaUrl=await lumaeMediaRefToServerValue(post.mediaUrl||'');
+      const trackUrl=await lumaeMediaRefToServerValue(post.trackUrl||'');
+      const authorAvatar=await lumaeMediaRefToServerValue(post.authorAvatar||'');
+      await usersV8FetchJSON('/api/posts',{
+        method:'POST',
+        body:JSON.stringify({
+          id:post.id,
+          body:post.body||'',
+          mediaUrl,
+          mediaType:post.mediaType||detectMediaType(mediaUrl,''),
+          trackUrl,
+          trackName:post.trackName||'',
+          authorName:post.authorName||lumaeAuth?.user?.name||'Lumae',
+          authorHandle:post.authorHandle||lumaeAuth?.user?.handle||'',
+          authorAvatar,
+          authorProfileId:post.authorProfileId||'',
+          createdAt:post.createdAt||new Date().toISOString()
+        })
+      });
+      for(const comment of (post.comments||[])){
+        const commentAvatar=await lumaeMediaRefToServerValue(comment.authorAvatar||'');
+        await usersV8FetchJSON(`/api/posts/${encodeURIComponent(post.id)}/comments`,{
+          method:'POST',
+          body:JSON.stringify({
+            id:comment.id,
+            body:comment.body||'',
+            authorName:comment.authorName||lumaeAuth?.user?.name||'Lumae',
+            authorHandle:comment.authorHandle||lumaeAuth?.user?.handle||'',
+            authorAvatar:commentAvatar,
+            createdAt:comment.createdAt||new Date().toISOString()
+          })
+        });
+      }
+      migrated+=1;
+    }
+    if(migrated===posts.length){
+      localStorage.removeItem(lumaeLocalPostsKey);
+    }
+    return migrated>0;
+  }catch(error){
+    return false;
+  }finally{
+    lumaeMigratingLocalPosts=false;
+  }
 }
 async function loadPosts(){
   const feed=document.getElementById('postsFeed');
   if(!feed) return;
   if(!usersV8HasApi()){
     const posts=readLocalPosts();
-    renderPosts(posts.length?posts:defaultPosts());
+    renderPosts(posts);
     return;
   }
   try{
+    await migrateLocalPostsToServer();
     const posts=await usersV8FetchJSON('/api/posts');
-    renderPosts((Array.isArray(posts)&&posts.length)?posts:defaultPosts());
+    renderPosts(Array.isArray(posts)?posts:[]);
   }catch(error){
-    const posts=readLocalPosts();
-    renderPosts(posts.length?posts:defaultPosts());
+    renderPosts([]);
+    showToast('Лента не загрузилась','Сервер временно не ответил. Попробуй обновить страницу.');
   }
 }
 function renderPosts(posts){
   const feed=document.getElementById('postsFeed');
   if(!feed) return;
-  lumaePosts=Array.isArray(posts)?posts:[];
-  feed.innerHTML=posts.map(post=>{
+  lumaePosts=lumaeRecommendedPosts(posts);
+  if(!lumaePosts.length){
+    feed.innerHTML='<div class="posts-empty-state"><strong>Пока нет живых постов</strong>Здесь будут только публикации людей: без демо-карточек и пустых заглушек.</div>';
+    renderPostComments();
+    return;
+  }
+  feed.innerHTML=`<div class="post-reco-strip"><div>Рекомендации Lumae <span>${lumaePosts.length} публикаций</span></div><div class="post-reco-pill">live</div></div>`+lumaePosts.map(post=>{
     const type=detectMediaType(post.mediaUrl||'',post.mediaType||'');
     const media=post.mediaUrl?(type==='video'
       ? `<div class="post-media"><video ${lumaeMediaAttr(post.mediaUrl)} controls playsinline preload="metadata"></video></div>`
@@ -14247,7 +14445,7 @@ function renderPosts(posts){
       <div class="post-card-inner">
       <div class="post-head">
         <div class="post-avatar">${postAvatarHTML(post)}</div>
-        <div class="post-author"><strong>${usersV8EscapeHTML(post.authorName||'Lumae')}</strong><span><em>${handle}</em><em>${usersV8EscapeHTML(postTime(post.createdAt))}</em></span></div>
+        <div class="post-author"><strong>${usersV8EscapeHTML(post.authorName||'Lumae')}</strong><span><em>${handle}</em><em>${usersV8EscapeHTML(postTime(post.createdAt))}</em><em>Рекомендация</em></span></div>
         <button class="post-menu-dot" type="button" onclick="togglePostMenu('${safeId}',event)">⋮</button>
         <div class="post-menu" id="post-menu-${safeId}">
           <button type="button" onclick="focusComment('${safeId}')">Комментарии</button>
@@ -14267,8 +14465,16 @@ function renderPosts(posts){
       </div>
     </article>`;
   }).join('');
+  feed.querySelectorAll('.post-actions .like').forEach((button,index)=>{
+    const post=lumaePosts[index];
+    if(post?.likedByMe){
+      button.classList.add('is-liked');
+      if(button.childNodes[0]) button.childNodes[0].textContent='♥ ';
+    }
+  });
   lumaeHydrateLocalMedia(feed);
   renderPostComments();
+  registerPostViews(lumaePosts);
 }
 function canDeletePost(post){
   if(!post) return false;
@@ -14276,7 +14482,7 @@ function canDeletePost(post){
   const userId=lumaeAuth?.user?.id||'';
   if(post.userId&&userId&&post.userId===userId) return true;
   if(post.authorProfileId&&profile?.id&&post.authorProfileId===profile.id) return true;
-  if(String(post.id||'').startsWith('LOCAL-POST-')) return true;
+  if(!usersV8HasApi()&&String(post.id||'').startsWith('LOCAL-POST-')) return true;
   return false;
 }
 async function loadPostMediaFile(event){
@@ -14347,16 +14553,25 @@ async function createPost(){
       return;
     }
   }
+  const authorPayload=usersV8HasApi()?await postAuthorPayloadForServer():postAuthorPayload();
   const payload={
       body:text,
       mediaUrl:mediaValue,
       mediaType:resolvedMediaType,
       trackUrl:trackValue,
       trackName:trackName,
-      ...postAuthorPayload()
+      ...authorPayload
   };
   let savedToApi=false;
   if(usersV8HasApi()){
+    if(String(lumaeAuth.token).startsWith('LOCAL-')){
+      lumaeAuth=null;
+      localStorage.removeItem('lumae.auth');
+      updateAuthUI();
+      showToast('Need server login','Sign in again so posts can be saved for everyone.');
+      openAuth();
+      return;
+    }
     try{
       await usersV8FetchJSON('/api/posts',{
         method:'POST',
@@ -14364,6 +14579,8 @@ async function createPost(){
       });
       savedToApi=true;
     }catch(apiError){
+      showToast('Post was not saved','The server returned an error. Please try again after signing in.');
+      return;
       if(postMediaFile){
         try{
           mediaValue=await lumaeSaveMediaFile(postMediaFile,'post');
@@ -14379,6 +14596,7 @@ async function createPost(){
     }
   }
   if(!savedToApi){
+    if(usersV8HasApi()) return;
     const profile=postAuthorPayload();
     const posts=readLocalPosts();
     posts.unshift({
@@ -14430,7 +14648,10 @@ async function likePost(id){
       await usersV8FetchJSON(`/api/posts/${encodeURIComponent(id)}/like`,{method:'POST'});
       loadPosts();
       return;
-    }catch(apiError){}
+    }catch(apiError){
+      showToast('Like was not saved','Please sign in again and try once more.');
+      return;
+    }
   }
   const posts=readLocalPosts();
   const likedKey='lumae.post.liked.'+id;
@@ -14481,7 +14702,10 @@ async function deletePost(id){
       await usersV8FetchJSON(`/api/posts/${encodeURIComponent(id)}`,{method:'DELETE'});
       await loadPosts();
       return;
-    }catch(apiError){}
+    }catch(apiError){
+      showToast('Post was not deleted','The server returned an error. Please try again.');
+      return;
+    }
   }
   const next=readLocalPosts().filter(item=>String(item.id)!==String(id));
   writeLocalPosts(next);
@@ -14536,12 +14760,16 @@ async function commentPost(id=activeCommentsPostId){
     try{
       await usersV8FetchJSON(`/api/posts/${encodeURIComponent(id)}/comments`,{
         method:'POST',
-        body:JSON.stringify({body,...postAuthorPayload()})
+        body:JSON.stringify({body,...await postAuthorPayloadForServer()})
       });
       savedToApi=true;
-    }catch(apiError){}
+    }catch(apiError){
+      showToast('Comment was not saved','The server returned an error. Please try again.');
+      return;
+    }
   }
   if(!savedToApi){
+    if(usersV8HasApi()) return;
     const author=postAuthorPayload();
     const posts=readLocalPosts();
     const next=posts.map(post=>String(post.id)===String(id)?{
@@ -15648,9 +15876,9 @@ adminV1Render();
 updateAuthUI();
 updateAppDock('home');
 loadPosts();
-lumaeMigrateOldInlineMedia().catch(()=>{});
+lumaeMigrateOldInlineMedia().then(()=>usersV8RepairOwnProfileMediaOnServer()).catch(()=>{});
 document.addEventListener('click',()=>closePostMenus());
-usersV8RefreshPublicProfiles().then(()=>adminV1SyncFromServer());
+usersV8RefreshPublicProfiles().then(()=>usersV8RepairOwnProfileMediaOnServer()).then(()=>adminV1SyncFromServer());
 adminV1SyncFromServer();
 const usersV8OverlayEl=document.getElementById('usersV8Overlay');
 if(usersV8OverlayEl){

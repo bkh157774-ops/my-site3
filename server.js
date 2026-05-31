@@ -12,8 +12,8 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
-app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(bodyParser.json({ limit: '100mb' }));
+app.use(bodyParser.urlencoded({ limit: '100mb', extended: true }));
 app.use(express.static(__dirname));
 
 // Database setup
@@ -126,6 +126,11 @@ function initDB() {
     `);
     addColumn('post_comments', 'authorHandle TEXT');
     addColumn('post_comments', 'authorAvatar TEXT');
+    db.run(
+      `DELETE FROM posts
+       WHERE id = 'demo-post'
+          OR (authorName = 'MuMu Player' AND body LIKE 'Пример поста%')`
+    );
   });
 }
 
@@ -135,6 +140,12 @@ function addColumn(table, definition) {
       console.error(`Migration error for ${table}.${definition}:`, err.message);
     }
   });
+}
+
+function publicMediaValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw || /^(lumae-media:|blob:)/i.test(raw)) return null;
+  return raw;
 }
 
 function rowToProfile(row) {
@@ -151,8 +162,10 @@ function rowToProfile(row) {
       status: full.status || row.status || '',
       tags: Array.isArray(full.tags) ? full.tags : JSON.parse(row.tags || '[]'),
       rarity: full.rarity || row.rarity || 'common',
-      bannerImgSrc: full.bannerImgSrc || row.banner || null,
-      avaImgSrc: full.avaImgSrc || row.avatar || null,
+      bannerImgSrc: publicMediaValue(full.bannerImgSrc || row.banner),
+      bannerVidSrc: publicMediaValue(full.bannerVidSrc),
+      avaImgSrc: publicMediaValue(full.avaImgSrc || row.avatar),
+      avaVidSrc: publicMediaValue(full.avaVidSrc),
       createdAt: full.createdAt || row.createdAt
     };
   } catch (error) {
@@ -165,6 +178,8 @@ function rowToProfile(row) {
       status: row.status || '',
       tags: [],
       rarity: row.rarity || 'common',
+      bannerImgSrc: publicMediaValue(row.banner),
+      avaImgSrc: publicMediaValue(row.avatar),
       createdAt: row.createdAt
     };
   }
@@ -211,6 +226,23 @@ function publicUser(row) {
   };
 }
 
+function userToProfile(row) {
+  const user = publicUser(row);
+  return {
+    id: user.id,
+    handle: user.handle,
+    name: user.name,
+    phone: '',
+    desc: '',
+    status: 'Lumae account',
+    tags: [],
+    rarity: 'common',
+    bannerImgSrc: null,
+    avaImgSrc: null,
+    createdAt: row.createdAt
+  };
+}
+
 function authToken(req) {
   const header = String(req.headers.authorization || '');
   return header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -234,24 +266,36 @@ function requireAuth(req, res, callback) {
   });
 }
 
+function optionalAuth(req, res, callback) {
+  getAuthUser(req, (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    callback(user || null);
+  });
+}
+
 function normalizePost(row, comments = []) {
   return {
     id: row.id,
     userId: row.userId || '',
     authorName: row.authorName,
     authorHandle: row.authorHandle || '',
-    authorAvatar: row.authorAvatar || '',
+    authorAvatar: publicMediaValue(row.authorAvatar) || '',
     authorProfileId: row.authorProfileId || '',
     body: row.body,
-    mediaUrl: row.mediaUrl || '',
+    mediaUrl: publicMediaValue(row.mediaUrl) || '',
     mediaType: row.mediaType || '',
-    trackUrl: row.trackUrl || '',
+    trackUrl: publicMediaValue(row.trackUrl) || '',
     trackName: row.trackName || '',
     createdAt: row.createdAt,
     likes: Number(row.likes || 0),
+    likedByMe: Boolean(Number(row.likedByMe || 0)),
     views: Number(row.views || 0),
     comments
   };
+}
+
+function isDemoPost(row) {
+  return row?.id === 'demo-post' || (row?.authorName === 'MuMu Player' && String(row?.body || '').startsWith('Пример поста'));
 }
 
 // API Routes
@@ -344,14 +388,21 @@ app.get('/api/profiles/:handle', (req, res) => {
 // POST create/update profile
 app.post('/api/profiles', (req, res) => {
   const source = req.body.profile && typeof req.body.profile === 'object' ? req.body.profile : req.body;
-  const { id, handle, name, phone, desc, game, status, tags, rarity, banner, avatar, bannerImgSrc, avaImgSrc } = source;
+  const safeProfile = {
+    ...source,
+    bannerImgSrc: publicMediaValue(source.bannerImgSrc || source.banner),
+    bannerVidSrc: publicMediaValue(source.bannerVidSrc),
+    avaImgSrc: publicMediaValue(source.avaImgSrc || source.avatar),
+    avaVidSrc: publicMediaValue(source.avaVidSrc)
+  };
+  const { id, handle, name, phone, desc, game, status, tags, rarity, bannerImgSrc, avaImgSrc } = safeProfile;
 
   if (!handle || !name) {
     return res.status(400).json({ error: 'Handle and name are required' });
   }
 
   const tagsJson = JSON.stringify(tags || []);
-  const fullProfile = JSON.stringify(source);
+  const fullProfile = JSON.stringify(safeProfile);
 
   db.run(
     `INSERT INTO profiles (profileId, handle, name, phone, game, desc, status, tags, rarity, banner, avatar, fullProfile)
@@ -369,7 +420,7 @@ app.post('/api/profiles', (req, res) => {
       avatar=excluded.avatar,
       fullProfile=excluded.fullProfile,
       updatedAt=CURRENT_TIMESTAMP`,
-    [id || '', handle, name, phone || '', game || desc || '', desc || game || '', status || '', tagsJson, rarity || 'common', bannerImgSrc || banner || '', avaImgSrc || avatar || '', fullProfile],
+    [id || '', handle, name, phone || '', game || desc || '', desc || game || '', status || '', tagsJson, rarity || 'common', bannerImgSrc || '', avaImgSrc || '', fullProfile],
     function(err) {
       if (err) {
         res.status(500).json({ error: err.message });
@@ -447,55 +498,69 @@ app.post('/api/admin/applications/:id/:decision', (req, res) => {
 });
 
 app.get('/api/posts', (req, res) => {
-  db.all(
-    `SELECT posts.*, COUNT(post_likes.userId) AS likes
+  getAuthUser(req, (authErr, user) => {
+    if (authErr) return res.status(500).json({ error: authErr.message });
+    db.all(
+      `SELECT posts.*,
+        COUNT(post_likes.userId) AS likes,
+        MAX(CASE WHEN post_likes.userId = ? THEN 1 ELSE 0 END) AS likedByMe
      FROM posts
      LEFT JOIN post_likes ON post_likes.postId = posts.id
      GROUP BY posts.id
      ORDER BY posts.createdAt DESC`,
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: err.message });
-      db.all('SELECT * FROM post_comments ORDER BY createdAt ASC', (commentsErr, comments) => {
-        if (commentsErr) return res.status(500).json({ error: commentsErr.message });
-        const byPost = comments.reduce((map, item) => {
-          if (!map[item.postId]) map[item.postId] = [];
-          map[item.postId].push({
-            id: item.id,
-            authorName: item.authorName,
-            authorHandle: item.authorHandle || '',
-            authorAvatar: item.authorAvatar || '',
-            body: item.body,
-            createdAt: item.createdAt
-          });
-          return map;
-        }, {});
-        res.json(rows.map(row => normalizePost(row, byPost[row.id] || [])));
-      });
-    }
-  );
+      [user?.id || ''],
+      (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.all('SELECT * FROM post_comments ORDER BY createdAt ASC', (commentsErr, comments) => {
+          if (commentsErr) return res.status(500).json({ error: commentsErr.message });
+          const byPost = comments.reduce((map, item) => {
+            if (!map[item.postId]) map[item.postId] = [];
+        map[item.postId].push({
+          id: item.id,
+          authorName: item.authorName,
+          authorHandle: item.authorHandle || '',
+          authorAvatar: publicMediaValue(item.authorAvatar) || '',
+          body: item.body,
+          createdAt: item.createdAt
+        });
+            return map;
+          }, {});
+          res.json(rows.filter(row => !isDemoPost(row)).map(row => normalizePost(row, byPost[row.id] || [])));
+        });
+      }
+    );
+  });
 });
 
 app.post('/api/posts', (req, res) => {
-  requireAuth(req, res, (user) => {
+  optionalAuth(req, res, (user) => {
     const body = String(req.body.body || '').trim();
     const mediaUrl = String(req.body.mediaUrl || '').trim();
     const trackUrl = String(req.body.trackUrl || '').trim();
     const trackName = String(req.body.trackName || '').trim();
     if (!body && !mediaUrl && !trackUrl) return res.status(400).json({ error: 'Post text, media or track is required' });
-    const id = createId('PST');
-    const authorName = String(req.body.authorName || user.name || user.email).trim();
-    const authorHandle = String(req.body.authorHandle || user.handle || '').replace(/^@/, '').trim();
+    const requestedId = String(req.body.id || '').trim();
+    if (requestedId === 'demo-post') return res.status(400).json({ error: 'Demo post is disabled' });
+    const id = /^[A-Za-z0-9_-]{3,80}$/.test(requestedId) ? requestedId : createId('PST');
+    const createdAtRaw = String(req.body.createdAt || '').trim();
+    const createdAt = createdAtRaw && !Number.isNaN(Date.parse(createdAtRaw)) ? createdAtRaw : new Date().toISOString();
+    const authorName = String(req.body.authorName || user?.name || user?.email || 'Lumae').trim();
+    const authorHandle = String(req.body.authorHandle || user?.handle || '').replace(/^@/, '').trim();
     const authorAvatar = String(req.body.authorAvatar || '').trim();
     const authorProfileId = String(req.body.authorProfileId || '').trim();
-    db.run(
-      `INSERT INTO posts (id, userId, authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, mediaType, trackUrl, trackName, views)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, user.id, authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, req.body.mediaType || '', trackUrl, trackName, 0],
-      (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, id });
-      }
-    );
+    db.get('SELECT id FROM posts WHERE id = ?', [id], (findErr, existing) => {
+      if (findErr) return res.status(500).json({ error: findErr.message });
+      if (existing) return res.json({ success: true, id, duplicate: true });
+      db.run(
+        `INSERT INTO posts (id, userId, authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, mediaType, trackUrl, trackName, views, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, user?.id || '', authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, req.body.mediaType || '', trackUrl, trackName, 0, createdAt],
+        (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ success: true, id });
+        }
+      );
+    });
   });
 });
 
@@ -513,6 +578,21 @@ app.post('/api/posts/:id/like', (req, res) => {
       }
     });
   });
+});
+
+app.post('/api/posts/:id/view', (req, res) => {
+  db.run(
+    'UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = ?',
+    [req.params.id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!this.changes) return res.status(404).json({ error: 'Post not found' });
+      db.get('SELECT views FROM posts WHERE id = ?', [req.params.id], (findErr, row) => {
+        if (findErr) return res.status(500).json({ error: findErr.message });
+        res.json({ success: true, views: Number(row?.views || 0) });
+      });
+    }
+  );
 });
 
 app.delete('/api/posts/:id', (req, res) => {
@@ -537,17 +617,25 @@ app.post('/api/posts/:id/comments', (req, res) => {
   requireAuth(req, res, (user) => {
     const body = String(req.body.body || '').trim();
     if (!body) return res.status(400).json({ error: 'Comment text is required' });
+    const requestedId = String(req.body.id || '').trim();
+    const id = /^[A-Za-z0-9_-]{3,80}$/.test(requestedId) ? requestedId : createId('COM');
+    const createdAtRaw = String(req.body.createdAt || '').trim();
+    const createdAt = createdAtRaw && !Number.isNaN(Date.parse(createdAtRaw)) ? createdAtRaw : new Date().toISOString();
     const authorName = String(req.body.authorName || user.name || user.email).trim();
     const authorHandle = String(req.body.authorHandle || user.handle || '').replace(/^@/, '').trim();
     const authorAvatar = String(req.body.authorAvatar || '').trim();
-    db.run(
-      'INSERT INTO post_comments (id, postId, userId, authorName, authorHandle, authorAvatar, body) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [createId('COM'), req.params.id, user.id, authorName, authorHandle, authorAvatar, body],
-      (err) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-      }
-    );
+    db.get('SELECT id FROM post_comments WHERE id = ? AND userId = ?', [id, user.id], (findErr, existing) => {
+      if (findErr) return res.status(500).json({ error: findErr.message });
+      if (existing) return res.json({ success: true, id, duplicate: true });
+      db.run(
+        'INSERT INTO post_comments (id, postId, userId, authorName, authorHandle, authorAvatar, body, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, req.params.id, user.id, authorName, authorHandle, authorAvatar, body, createdAt],
+        (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ success: true, id });
+        }
+      );
+    });
   });
 });
 

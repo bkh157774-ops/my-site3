@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Профили людей — Lumae</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#f5f5f7;font-family:'Manrope',sans-serif;color:#111;min-height:100vh;}
+
+/* HERO */
+.hero{background:#fff;padding:72px 24px 64px;text-align:center;border-bottom:1px solid #e8e8e8;}
+.hero-chip{display:inline-flex;align-items:center;gap:6px;background:#f0edff;color:#6b3cff;font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;padding:6px 16px;border-radius:20px;margin-bottom:28px;}
+.hero-title{font-family:'Syne',sans-serif;font-size:clamp(38px,7vw,68px);font-weight:800;line-height:1.04;color:#0a0a0a;margin-bottom:20px;}
+.hero-title em{font-style:normal;background:linear-gradient(135deg,#6b3cff,#c060ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.hero-sub{color:#aaa;font-size:16px;max-width:380px;margin:0 auto 44px;line-height:1.6;}
+.btn-hero{display:inline-flex;align-items:center;gap:10px;background:#6b3cff;color:#fff;font-family:'Syne',sans-serif;font-size:15px;font-weight:700;padding:18px 36px;border-radius:50px;border:none;cursor:pointer;transition:all .25s;box-shadow:0 8px 28px rgba(107,60,255,.38);letter-spacing:.02em;}
+.btn-hero:hover{background:#5a2dee;transform:translateY(-2px);box-shadow:0 16px 40px rgba(107,60,255,.45);}
+
+/* OVERLAY */
+.overlay{display:none;position:fixed;inset:0;background:rgba(10,10,10,.5);backdrop-filter:blur(14px);z-index:300;align-items:center;justify-content:center;padding:16px;overflow-y:auto;}
+.overlay.open{display:flex;}
+
+/* EDITOR MODAL */
+.editor{background:#fff;border-radius:28px;width:100%;max-width:520px;overflow:hidden;box-shadow:0 48px 96px rgba(0,0,0,.22);animation:mIn .32s cubic-bezier(.34,1.56,.64,1);margin:auto;}
+@keyframes mIn{from{opacity:0;transform:scale(.93) translateY(14px)}to{opacity:1;transform:scale(1) translateY(0)}}
+
+/* BANNER ZONE */
+.editor-banner{height:140px;position:relative;cursor:pointer;overflow:hidden;background:linear-gradient(135deg,#eeebff,#ddd5ff);}
+.editor-banner-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;}
+.banner-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .2s;display:flex;align-items:center;justify-content:center;}
+.editor-banner:hover .banner-overlay{background:rgba(0,0,0,.25);}
+.banner-hint{opacity:0;transition:opacity .2s;display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;}
+.editor-banner:hover .banner-hint{opacity:1;}
+.banner-hint svg{width:22px;height:22px;}
+.banner-hint span{font-size:12px;font-weight:600;font-family:'Syne',sans-serif;}
+.banner-gradient-picker{position:absolute;bottom:10px;right:10px;display:flex;gap:6px;}
+.grad-dot{width:18px;height:18px;border-radius:50%;cursor:pointer;border:2px solid rgba(255,255,255,.6);transition:transform .15s;}
+.grad-dot:hover,.grad-dot.active{transform:scale(1.2);border-color:#fff;}
+
+/* AVATAR ZONE */
+.editor-body{padding:0 24px 28px;}
+.avatar-zone{position:relative;display:inline-block;margin-top:-32px;margin-bottom:12px;}
+.editor-ava{width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:linear-gradient(135deg,#eeebff,#ddd5ff);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:22px;font-weight:800;color:#6b3cff;cursor:pointer;overflow:hidden;position:relative;box-shadow:0 4px 16px rgba(0,0,0,.1);}
+.editor-ava img{width:100%;height:100%;object-fit:cover;border-radius:50%;position:absolute;inset:0;}
+.ava-edit-btn{position:absolute;bottom:0;right:0;width:22px;height:22px;background:#6b3cff;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid #fff;}
+.ava-edit-btn svg{width:10px;height:10px;color:#fff;}
+.online-dot{position:absolute;bottom:2px;right:20px;width:12px;height:12px;background:#22c55e;border-radius:50%;border:2px solid #fff;}
+
+.name-row{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;}
+.editor-name-input{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#0a0a0a;border:none;outline:none;background:transparent;flex:1;padding:0;}
+.editor-name-input::placeholder{color:#ddd;}
+
+.edit-badge{display:flex;align-items:center;gap:5px;background:#f5f5f7;border:none;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:600;color:#888;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s;flex-shrink:0;}
+.edit-badge:hover{background:#eeebff;color:#6b3cff;}
+.edit-badge svg{width:12px;height:12px;}
+
+.handle-display{font-size:13px;color:#bbb;margin-bottom:14px;}
+
+/* GAME ROW */
+.game-row{display:flex;align-items:center;gap:8px;background:#fafafa;border-radius:12px;padding:10px 12px;margin-bottom:10px;border:1px solid #f0f0f0;}
+.game-icon-box{width:28px;height:28px;border-radius:8px;background:#eeebff;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.game-col{flex:1;}
+.game-label-text{font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+.game-input{font-size:13px;font-weight:700;color:#333;border:none;outline:none;background:transparent;width:100%;font-family:'Manrope',sans-serif;}
+.game-input::placeholder{color:#ccc;font-weight:500;}
+
+/* STATUS ROW */
+.status-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.status-dot{width:8px;height:8px;background:#22c55e;border-radius:50%;flex-shrink:0;}
+.status-input{font-size:13px;color:#555;border:none;outline:none;background:transparent;flex:1;font-family:'Manrope',sans-serif;}
+.status-input::placeholder{color:#ddd;}
+
+/* TAGS */
+.tags-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;align-items:center;}
+.ptag{display:flex;align-items:center;gap:4px;background:#f0f0f5;color:#777;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.ptag button{background:none;border:none;color:#bbb;cursor:pointer;font-size:12px;line-height:1;padding:0;}
+.tag-add-btn{display:flex;align-items:center;gap:4px;background:#f5f0ff;color:#9b6fff;border:none;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;}
+.tag-input-wrap{display:none;align-items:center;gap:6px;}
+.tag-input-wrap.show{display:flex;}
+.tag-input-wrap input{border:1.5px solid #e0d5ff;border-radius:20px;padding:4px 12px;font-size:12px;font-family:'Manrope',sans-serif;outline:none;color:#111;width:120px;}
+.tag-input-wrap input:focus{border-color:#9b6fff;}
+
+/* RARITY PILL */
+.rarity-row{margin-bottom:16px;}
+.rarity-pill-display{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;font-family:'Syne',sans-serif;}
+
+/* HANDLE FIELD */
+.handle-field{display:flex;align-items:center;background:#fafafa;border:1.5px solid #f0f0f0;border-radius:12px;overflow:hidden;margin-bottom:10px;transition:border-color .2s;}
+.handle-field:focus-within{border-color:#9b6fff;background:#fff;}
+.handle-at-label{padding:10px 2px 10px 14px;color:#ccc;font-size:14px;font-weight:600;}
+.handle-field input{border:none;background:transparent;padding:10px 14px 10px 3px;font-size:14px;font-family:'Manrope',sans-serif;color:#111;outline:none;flex:1;}
+
+/* DIVIDER */
+.editor-divider{height:1px;background:#f0f0f0;margin:14px 0;}
+
+/* BOTTOM ACTIONS */
+.editor-actions{display:flex;gap:10px;padding:0 24px 24px;}
+.btn-cancel{flex:1;padding:14px;border-radius:14px;border:1.5px solid #ebebeb;background:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:'Manrope',sans-serif;color:#888;transition:all .2s;}
+.btn-cancel:hover{background:#f5f5f7;}
+.btn-save{flex:2;padding:14px;border-radius:14px;border:none;background:#6b3cff;color:#fff;font-size:15px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s;box-shadow:0 4px 16px rgba(107,60,255,.3);}
+.btn-save:hover{background:#5a2dee;}
+
+/* CARDS SECTION */
+.section{padding:64px 20px;max-width:1080px;margin:0 auto;}
+.sec-label{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#bbb;margin-bottom:10px;}
+.sec-title{font-family:'Syne',sans-serif;font-size:clamp(26px,4vw,40px);font-weight:800;color:#0a0a0a;margin-bottom:36px;}
+.pcards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:64px;}
+
+.pcard{background:#fff;border-radius:22px;overflow:hidden;border:1px solid #ebebeb;cursor:pointer;transition:all .3s;box-shadow:0 2px 8px rgba(0,0,0,.04);}
+.pcard:hover{transform:translateY(-6px);box-shadow:0 24px 48px rgba(0,0,0,.1);}
+.pcard-banner{height:90px;}
+.pcard-body{padding:32px 16px 16px;position:relative;}
+.pcard-ava{position:absolute;top:-28px;left:14px;width:54px;height:54px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-size:18px;font-weight:800;overflow:hidden;}
+.pcard-ava img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.pcard-online{position:absolute;top:-16px;left:44px;width:11px;height:11px;background:#22c55e;border-radius:50%;border:2px solid #fff;}
+.pcard-badge{position:absolute;top:-13px;right:14px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;font-family:'Syne',sans-serif;}
+.pcard-name{font-family:'Syne',sans-serif;font-size:15px;font-weight:800;color:#0a0a0a;margin-bottom:1px;}
+.pcard-handle{font-size:11px;color:#bbb;margin-bottom:10px;}
+.pcard-game{display:flex;align-items:center;gap:7px;background:#fafafa;border-radius:10px;padding:7px 10px;margin-bottom:8px;}
+.pcard-game-icon{width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.pcard-game-label{font-size:9px;color:#bbb;text-transform:uppercase;letter-spacing:.08em;font-weight:700;}
+.pcard-game-name{font-size:12px;font-weight:700;color:#333;}
+.pcard-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;}
+.pcard-tag{font-size:10px;font-weight:600;padding:3px 8px;border-radius:20px;background:#f0f0f5;color:#888;}
+.pcard-divider{height:1px;background:#f0f0f0;margin-bottom:12px;}
+.pcard-bottom{display:flex;align-items:center;justify-content:space-between;}
+.pcard-price{font-family:'Syne',sans-serif;font-size:12px;font-weight:800;}
+.btn-apply{padding:6px 14px;border-radius:20px;border:none;font-size:11px;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;transition:all .2s;}
+.btn-apply:hover{filter:brightness(.92);}
+
+.divider-line{height:1px;background:#ebebeb;margin-bottom:64px;}
+.rcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;}
+.rcard{background:#fff;border-radius:16px;padding:22px;border:1px solid #ebebeb;box-shadow:0 2px 6px rgba(0,0,0,.03);transition:all .2s;}
+.rcard:hover{transform:translateY(-3px);box-shadow:0 14px 32px rgba(0,0,0,.08);}
+.rcard-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.rdot{width:8px;height:8px;border-radius:50%;}
+.rcard-name{font-family:'Syne',sans-serif;font-size:14px;font-weight:800;}
+.rcard-price{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-bottom:2px;}
+.rcard-range{font-size:11px;color:#bbb;margin-bottom:12px;}
+.rcard-desc{font-size:12px;color:#aaa;margin-bottom:14px;line-height:1.5;}
+.rhandles{display:flex;flex-direction:column;gap:5px;}
+.rhandle{font-family:'Syne',sans-serif;font-size:12px;font-weight:600;padding:6px 10px;border-radius:8px;background:#f5f5f7;color:#666;transition:all .15s;}
+.rhandle:hover{background:#eeebff;color:#6b3cff;}
+
+/* CREATED */
+.created-section{display:none;padding:48px 20px 0;max-width:1080px;margin:0 auto;}
+.created-section.show{display:block;}
+.created-label{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:#6b3cff;margin-bottom:16px;}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.pcard{animation:fadeUp .4s ease both;}
+.pcard:nth-child(1){animation-delay:.04s}.pcard:nth-child(2){animation-delay:.08s}.pcard:nth-child(3){animation-delay:.12s}.pcard:nth-child(4){animation-delay:.16s}.pcard:nth-child(5){animation-delay:.2s}.pcard:nth-child(6){animation-delay:.24s}.pcard:nth-child(7){animation-delay:.28s}.pcard:nth-child(8){animation-delay:.32s}
+</style>
+</head>
+<body>
+
+<!-- OVERLAY -->
+<div class="overlay" id="overlay">
+<div class="editor">
+
+  <!-- BANNER -->
+  <div class="editor-banner" id="editorBanner" onclick="document.getElementById('bannerIn').click()">
+    <img id="bannerImg" class="editor-banner-img">
+    <div class="banner-overlay">
+      <div class="banner-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        <span>Загрузить баннер</span>
+      </div>
+    </div>
+    <div class="banner-gradient-picker">
+      <div class="grad-dot active" style="background:linear-gradient(135deg,#eeebff,#ddd5ff);" onclick="setBannerGrad(event,'linear-gradient(135deg,#eeebff,#ddd5ff)')"></div>
+      <div class="grad-dot" style="background:linear-gradient(135deg,#1a0050,#6b3cff,#a78bfa);" onclick="setBannerGrad(event,'linear-gradient(135deg,#1a0050,#6b3cff,#a78bfa)')"></div>
+      <div class="grad-dot" style="background:linear-gradient(135deg,#ff6b9d,#c850c0,#4158d0);" onclick="setBannerGrad(event,'linear-gradient(135deg,#ff6b9d,#c850c0,#4158d0)')"></div>
+      <div class="grad-dot" style="background:linear-gradient(135deg,#0a0a1a,#1a1a4e,#3a3a8e);" onclick="setBannerGrad(event,'linear-gradient(135deg,#0a0a1a,#1a1a4e,#3a3a8e)')"></div>
+      <div class="grad-dot" style="background:linear-gradient(135deg,#300010,#ff3c50,#ff9d00);" onclick="setBannerGrad(event,'linear-gradient(135deg,#300010,#ff3c50,#ff9d00)')"></div>
+    </div>
+  </div>
+  <input type="file" id="bannerIn" accept="image/*" style="display:none" onchange="loadBanner(event)">
+
+  <!-- BODY -->
+  <div class="editor-body">
+
+    <!-- AVATAR -->
+    <div class="avatar-zone">
+      <div class="editor-ava" id="editorAva" onclick="document.getElementById('avaIn').click()">
+        <span id="avaLetter">?</span>
+        <img id="avaImgEl" src="" style="display:none;">
+      </div>
+      <div class="online-dot"></div>
+      <div class="ava-edit-btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="10" height="10"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      </div>
+    </div>
+    <input type="file" id="avaIn" accept="image/*" style="display:none" onchange="loadAva(event)">
+
+    <!-- NAME ROW -->
+    <div class="name-row">
+      <input class="editor-name-input" id="inName" type="text" placeholder="Твоё имя" oninput="syncHandle()">
+      <button class="edit-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Edit
+      </button>
+    </div>
+
+    <!-- HANDLE -->
+    <div class="handle-field">
+      <span class="handle-at-label">@</span>
+      <input type="text" id="inHandle" placeholder="yourname" oninput="checkRarity()">
+    </div>
+
+    <!-- RARITY -->
+    <div class="rarity-row">
+      <div class="rarity-pill-display" id="rarityPill" style="background:#f5f5f5;color:#999;">⚪ Обычный</div>
+    </div>
+
+    <!-- GAME -->
+    <div class="game-row">
+      <div class="game-icon-box" id="gameIconBox">🎮</div>
+      <div class="game-col">
+        <div class="game-label-text">Любимая игра</div>
+        <input class="game-input" id="inGame" type="text" placeholder="Valorant, CS2, Genshin...">
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status-row">
+      <div class="status-dot"></div>
+      <input class="status-input" id="inStatus" type="text" placeholder="Статус — testing, в сети...">
+    </div>
+
+    <!-- TAGS -->
+    <div class="tags-row" id="tagsRow">
+      <div class="tag-input-wrap" id="tagInputWrap">
+        <input type="text" id="tagIn" placeholder="тег..." onkeydown="addTag(event)">
+      </div>
+      <button class="tag-add-btn" onclick="focusTagInput()">+ тег</button>
+    </div>
+
+    <div class="editor-divider"></div>
+  </div>
+
+  <div class="editor-actions">
+    <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+    <button class="btn-save" onclick="submitProfile()">Сохранить профиль →</button>
+  </div>
+
+</div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-chip">✦ Lumae · Профили</div>
+  <div class="hero-title">Твой ник —<br>твоя <em>редкость</em></div>
+  <div class="hero-sub">Короткие никнеймы ценнее. Займи свой до того, как это сделает кто-то другой.</div>
+  <button class="btn-hero" onclick="openModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Получить профиль
+  </button>
+</div>
+
+<!-- CREATED -->
+<div class="created-section" id="createdSection">
+  <div class="created-label">✦ Твой профиль</div>
+  <div style="max-width:240px;">
+    <div class="pcard" id="createdCard" style="animation:fadeUp .5s ease;">
+      <div class="pcard-banner" id="cBanner" style="background:linear-gradient(135deg,#eeebff,#ddd5ff);"></div>
+      <div class="pcard-body">
+        <div class="pcard-ava" id="cAva" style="background:#eeebff;color:#6b3cff;">?</div>
+        <div class="pcard-online"></div>
+        <div class="pcard-badge" id="cBadge" style="background:#f0edff;color:#6b3cff;">⚪ Обычный</div>
+        <div class="pcard-name" id="cName">Имя</div>
+        <div class="pcard-handle" id="cHandle">@yourname</div>
+        <div class="pcard-game" id="cGameRow" style="display:none;">
+          <div class="pcard-game-icon">🎮</div>
+          <div>
+            <div class="pcard-game-label">Любимая игра</div>
+            <div class="pcard-game-name" id="cGameName"></div>
+          </div>
+        </div>
+        <div class="pcard-tags" id="cTags"></div>
+        <div class="pcard-divider"></div>
+        <div class="pcard-bottom">
+          <div class="pcard-price" id="cPrice" style="color:#999;">Бесплатно</div>
+          <button class="btn-apply" id="cApply" style="background:#f0edff;color:#6b3cff;">Подать заявку</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILES -->
+<div class="section">
+  <div class="sec-label">Примеры профилей</div>
+  <div class="sec-title">Посмотри, какой<br>профиль ты можешь создать</div>
+  <div class="pcards-grid" id="pcards"></div>
+
+  <div class="divider-line"></div>
+
+  <div class="sec-label">Система редкости</div>
+  <div class="sec-title">Чем короче —<br>тем ценнее</div>
+  <div class="rcards">
+    <div class="rcard"><div class="rcard-top"><div class="rdot" style="background:#ccc;"></div><div class="rcard-name" style="color:#888;">Обычный</div></div><div class="rcard-price" style="color:#888;">Бесплатно</div><div class="rcard-range">Доступно всем</div><div class="rcard-desc">Стандартные ники</div><div class="rhandles"><div class="rhandle">@alex123</div><div class="rhandle">@music_life</div></div></div>
+    <div class="rcard" style="border-color:rgba(107,60,255,.15);"><div class="rcard-top"><div class="rdot" style="background:#6b3cff;"></div><div class="rcard-name" style="color:#6b3cff;">Редкий</div></div><div class="rcard-price" style="color:#6b3cff;">200 — 400 ₽</div><div class="rcard-range">в месяц</div><div class="rcard-desc">Короткие, без цифр</div><div class="rhandles"><div class="rhandle">@alex</div><div class="rhandle">@luma</div></div></div>
+    <div class="rcard" style="border-color:rgba(160,60,255,.15);"><div class="rcard-top"><div class="rdot" style="background:#a030e0;"></div><div class="rcard-name" style="color:#a030e0;">Эпический</div></div><div class="rcard-price" style="color:#a030e0;">1 000 — 2 000 ₽</div><div class="rcard-range">в месяц</div><div class="rcard-desc">3–4 символа</div><div class="rhandles"><div class="rhandle">@void</div><div class="rhandle">@dark</div></div></div>
+    <div class="rcard" style="border-color:rgba(255,60,80,.15);"><div class="rcard-top"><div class="rdot" style="background:#ff3c50;"></div><div class="rcard-name" style="color:#ff3c50;">Легендарный</div></div><div class="rcard-price" style="color:#ff3c50;">4 000 — 7 000 ₽</div><div class="rcard-range">в месяц</div><div class="rcard-desc">1–2 символа</div><div class="rhandles"><div class="rhandle">@x</div><div class="rhandle">@ai</div></div></div>
+  </div>
+</div>
+
+<script>
+const rar = {
+  legendary:{label:'🔴 Легендарный',color:'#ff3c50',bg:'#fff0f2',price:'от 4 000 ₽/мес',banner:'linear-gradient(135deg,#fff0f2,#ffc8d0)'},
+  epic:     {label:'🟣 Эпический',  color:'#a030e0',bg:'#f5eaff',price:'от 1 000 ₽/мес',banner:'linear-gradient(135deg,#f5eaff,#e0b8ff)'},
+  rare:     {label:'🔵 Редкий',     color:'#6b3cff',bg:'#eeebff',price:'от 200 ₽/мес',  banner:'linear-gradient(135deg,#eeebff,#d5c8ff)'},
+  common:   {label:'⚪ Обычный',    color:'#999',   bg:'#f5f5f5',price:'Бесплатно',      banner:'linear-gradient(135deg,#f0f0f0,#e0e0e8)'}
+};
+
+const profiles=[
+  {name:'Alex Test',handle:'alex.test',game:'Valorant',gameIcon:'🎯',tags:['testing','аниме'],rarity:'rare',banner:'linear-gradient(135deg,#1a0050,#6b3cff,#a78bfa)',avaBg:'#eeebff',avaColor:'#6b3cff',letter:'A',online:true},
+  {name:'Void',handle:'void',game:'CS2',gameIcon:'🔫',tags:['dark','music'],rarity:'epic',banner:'linear-gradient(135deg,#2d0060,#9b3cff,#e040fb)',avaBg:'#f5eaff',avaColor:'#a030e0',letter:'V',online:false},
+  {name:'Sakura',handle:'saku',game:'Genshin',gameIcon:'⚔️',tags:['аниме','арт'],rarity:'epic',banner:'linear-gradient(135deg,#ff6b9d,#c850c0,#4158d0)',avaBg:'#ffeaff',avaColor:'#c850c0',letter:'S',online:true},
+  {name:'x',handle:'x',game:'Dota 2',gameIcon:'🏆',tags:['pro'],rarity:'legendary',banner:'linear-gradient(135deg,#300010,#ff3c50,#ff9d00)',avaBg:'#ffe0e3',avaColor:'#ff3c50',letter:'X',online:true},
+  {name:'Night Owl',handle:'night',game:'Minecraft',gameIcon:'⛏️',tags:['стримы','ночь'],rarity:'rare',banner:'linear-gradient(135deg,#0a0a1a,#1a1a4e,#3a3a8e)',avaBg:'#e8e8ff',avaColor:'#4444cc',letter:'N',online:false},
+  {name:'music_life',handle:'music_life',game:'Fortnite',gameIcon:'🎸',tags:['музыка'],rarity:'common',banner:'linear-gradient(135deg,#e0e0e8,#c8c8d8)',avaBg:'#ebebeb',avaColor:'#888',letter:'M',online:false},
+  {name:'Zero',handle:'zero',game:'Apex',gameIcon:'🔥',tags:['fps','ranked'],rarity:'epic',banner:'linear-gradient(135deg,#001a10,#006644,#00cc88)',avaBg:'#e0fff5',avaColor:'#00aa66',letter:'Z',online:true},
+  {name:'ai',handle:'ai',game:'Cyberpunk',gameIcon:'🤖',tags:['tech'],rarity:'legendary',banner:'linear-gradient(135deg,#000a1a,#003366,#0066ff)',avaBg:'#e0f0ff',avaColor:'#0066ff',letter:'A',online:true},
+];
+
+function buildCards(){
+  const g=document.getElementById('pcards');
+  profiles.forEach(p=>{
+    const r=rar[p.rarity];
+    const d=document.createElement('div');
+    d.className='pcard';
+    d.innerHTML=`<div class="pcard-banner" style="background:${p.banner};"></div><div class="pcard-body"><div class="pcard-ava" style="background:${p.avaBg};color:${p.avaColor};">${p.letter}</div>${p.online?'<div class="pcard-online"></div>':''}<div class="pcard-badge" style="background:${r.bg};color:${r.color};">${r.label}</div><div class="pcard-name">${p.name}</div><div class="pcard-handle">@${p.handle}</div><div class="pcard-game"><div class="pcard-game-icon" style="background:${r.bg};">${p.gameIcon}</div><div><div class="pcard-game-label">Любимая игра</div><div class="pcard-game-name">${p.game}</div></div></div><div class="pcard-tags">${p.tags.map(t=>`<div class="pcard-tag">${t}</div>`).join('')}</div><div class="pcard-divider"></div><div class="pcard-bottom"><div class="pcard-price" style="color:${r.color};">${r.price}</div><button class="btn-apply" style="background:${r.bg};color:${r.color};" onclick="event.stopPropagation()">Подать заявку</button></div></div>`;
+    g.appendChild(d);
+  });
+}
+buildCards();
+
+let tags=[], curRarity='common', avaSrc='', bannerSrc='';
+const API_URL = 'http://localhost:3000/api';
+
+function getRarity(h){
+  const l=h.length,c=!/[0-9_]/.test(h);
+  if(l<=2)return'legendary';if(l<=4&&c)return'epic';if(l<=8&&c)return'rare';return'common';
+}
+
+function checkRarity(){
+  const h=document.getElementById('inHandle').value.trim();
+  if(!h){curRarity='common';}else{curRarity=getRarity(h);}
+  const r=rar[curRarity];
+  const pill=document.getElementById('rarityPill');
+  pill.style.cssText=`display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;font-family:'Syne',sans-serif;background:${r.bg};color:${r.color};`;
+  pill.textContent=r.label;
+  syncCreated();
+}
+
+function syncHandle(){syncCreated();}
+
+function syncCreated(){
+  const name=document.getElementById('inName').value||'Имя';
+  const handle=document.getElementById('inHandle').value||'yourname';
+  const game=document.getElementById('inGame').value;
+  const r=rar[curRarity];
+  document.getElementById('cName').textContent=name;
+  document.getElementById('cHandle').textContent='@'+handle;
+  document.getElementById('cBadge').textContent=r.label;
+  document.getElementById('cBadge').style.cssText=`position:absolute;top:-13px;right:14px;padding:3px 10px;border-radius:20px;font-size:10px;font-weight:700;font-family:'Syne',sans-serif;background:${r.bg};color:${r.color};`;
+  document.getElementById('cPrice').textContent=r.price;
+  document.getElementById('cPrice').style.color=r.color;
+  document.getElementById('cApply').style.cssText=`padding:6px 14px;border-radius:20px;border:none;font-size:11px;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;background:${r.bg};color:${r.color};`;
+  if(!bannerSrc)document.getElementById('cBanner').style.background=r.banner;
+  if(game){document.getElementById('cGameRow').style.display='flex';document.getElementById('cGameName').textContent=game;}
+  else document.getElementById('cGameRow').style.display='none';
+  if(!avaSrc){
+    const el=document.getElementById('cAva');
+    el.textContent=name[0]?.toUpperCase()||'?';
+    el.style.background=r.bg;el.style.color=r.color;
+  }
+  document.getElementById('cTags').innerHTML=tags.map(t=>`<div class="pcard-tag">${t}</div>`).join('');
+}
+
+function setBannerGrad(e,grad){
+  e.stopPropagation();
+  document.querySelectorAll('.grad-dot').forEach(d=>d.classList.remove('active'));
+  e.target.classList.add('active');
+  document.getElementById('editorBanner').style.background=grad;
+  document.getElementById('bannerImg').style.display='none';
+  bannerSrc='';
+  document.getElementById('cBanner').style.background=grad;
+}
+
+function loadBanner(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    bannerSrc=ev.target.result;
+    const img=document.getElementById('bannerImg');
+    img.src=bannerSrc;img.style.display='block';
+    document.getElementById('cBanner').style.backgroundImage=`url(${bannerSrc})`;
+    document.getElementById('cBanner').style.backgroundSize='cover';
+  };
+  r.readAsDataURL(f);
+}
+
+function loadAva(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    avaSrc=ev.target.result;
+    const img=document.getElementById('avaImgEl');
+    img.src=avaSrc;img.style.display='block';
+    document.getElementById('avaLetter').style.display='none';
+    const cAva=document.getElementById('cAva');
+    cAva.innerHTML=`<img src="${avaSrc}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;position:absolute;inset:0;">`;
+    cAva.style.position='relative';
+  };
+  r.readAsDataURL(f);
+}
+
+function focusTagInput(){
+  document.getElementById('tagInputWrap').classList.add('show');
+  document.getElementById('tagIn').focus();
+}
+
+function addTag(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    const v=e.target.value.trim();
+    if(v&&tags.length<5){tags.push(v);e.target.value='';renderTags();}
+  }
+}
+
+function renderTags(){
+  const row=document.getElementById('tagsRow');
+  row.innerHTML=tags.map((t,i)=>`<div class="ptag">${t}<button onclick="removeTag(${i})">×</button></div>`).join('');
+  const wrap=document.createElement('div');wrap.className='tag-input-wrap show';wrap.id='tagInputWrap';
+  const inp=document.createElement('input');inp.type='text';inp.id='tagIn';inp.placeholder='тег...';inp.onkeydown=addTag;
+  wrap.appendChild(inp);row.appendChild(wrap);
+  const btn=document.createElement('button');btn.className='tag-add-btn';btn.textContent='+ тег';btn.onclick=focusTagInput;
+  row.appendChild(btn);
+  syncCreated();
+}
+
+function removeTag(i){tags.splice(i,1);renderTags();}
+
+function openModal(){document.getElementById('overlay').classList.add('open');}
+function closeModal(){document.getElementById('overlay').classList.remove('open');}
+
+async function submitProfile(){
+  const name=document.getElementById('inName').value.trim();
+  const handle=document.getElementById('inHandle').value.trim();
+  if(!name||!handle){alert('Заполни имя и никнейм!');return;}
+  
+  try {
+    const response = await fetch(`${API_URL}/profiles`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        handle,
+        name,
+        game: document.getElementById('inGame').value,
+        status: document.getElementById('inStatus').value,
+        tags,
+        rarity: curRarity,
+        bannerImgSrc: bannerSrc,
+        avaImgSrc: avaSrc
+      })
+    });
+    
+    if (response.ok) {
+      syncCreated();
+      closeModal();
+      const sec=document.getElementById('createdSection');
+      sec.classList.add('show');
+      sec.scrollIntoView({behavior:'smooth',block:'start'});
+      loadAllProfiles();
+    } else {
+      alert('Ошибка при сохранении профиля');
+    }
+  } catch (err) {
+    alert('Ошибка подключения к серверу');
+    console.error(err);
+  }
+}
+
+async function loadAllProfiles(){
+  try {
+    const response = await fetch(`${API_URL}/profiles`);
+    const serverProfiles = await response.json();
+    
+    const g = document.getElementById('pcards');
+    g.innerHTML = '';
+    
+    serverProfiles.forEach(p => {
+      const r = rar[p.rarity] || rar.common;
+      const d = document.createElement('div');
+      d.className = 'pcard';
+      // Use correct API property names: avaImgSrc and bannerImgSrc
+      const avaImg = p.avaImgSrc || p.avaVidSrc || p.avatar;
+      const bannerImg = p.bannerImgSrc || p.bannerVidSrc || p.banner;
+      
+      const avatarHtml = avaImg ? `<img src="${avaImg}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;position:absolute;inset:0;">` : `<span style="font-size:20px;font-weight:800;">${p.name[0]?.toUpperCase() || '?'}</span>`;
+      const avaBg = avaImg ? 'transparent' : (r.bg);
+      const avaColor = avaImg ? 'transparent' : (r.color);
+      const tagsHtml = (p.tags || []).map(t=>`<div class="pcard-tag">${t}</div>`).join('');
+      const gameRow = p.game ? `<div class="pcard-game"><div class="pcard-game-icon" style="background:${r.bg};">🎮</div><div><div class="pcard-game-label">Любимая игра</div><div class="pcard-game-name">${p.game}</div></div></div>` : '';
+      
+      d.innerHTML = `
+        <div class="pcard-banner" style="background:${bannerImg ? `url(${bannerImg}) center/cover` : r.banner};"></div>
+        <div class="pcard-body">
+          <div class="pcard-ava" style="background:${avaBg};color:${avaColor};position:relative;">
+            ${avatarHtml}
+          </div>
+          <div class="pcard-badge" style="background:${r.bg};color:${r.color};">${r.label}</div>
+          <div class="pcard-name">${p.name}</div>
+          <div class="pcard-handle">@${p.handle}</div>
+          ${gameRow}
+          <div class="pcard-tags">${tagsHtml}</div>
+          <div class="pcard-divider"></div>
+          <div class="pcard-bottom">
+            <div class="pcard-price" style="color:${r.color};">${r.price}</div>
+            <button class="btn-apply" style="background:${r.bg};color:${r.color};">Подать заявку</button>
+          </div>
+        </div>
+      `;
+      g.appendChild(d);
+    });
+  } catch (err) {
+    console.error('Ошибка загрузки профилей:', err);
+  }
+}
+
+document.getElementById('overlay').addEventListener('click',e=>{if(e.target===document.getElementById('overlay'))closeModal();});
+window.addEventListener('load', loadAllProfiles);
+</script>
+</body>
+</html>
