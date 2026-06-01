@@ -14,26 +14,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
-
-// Error handler for body-parser
-app.use((error, req, res, next) => {
-  if (error instanceof SyntaxError && 'body' in error) {
-    return res.status(413).json({ error: 'Request payload too large or invalid JSON' });
-  }
-  if (error.status === 413) {
-    return res.status(413).json({ error: 'Request payload too large' });
-  }
-  next();
-});
-
 app.use(express.static(__dirname));
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Explicit media directory handlers
-['grdh', 'csdkjhv', 'fvhdfzbvfjbs', 'uploads'].forEach(dir => {
-  const dirPath = path.join(__dirname, dir);
-  app.use(`/${dir}`, express.static(dirPath));
-});
 
 // Database setup
 const db = new sqlite3.Database(path.join(__dirname, 'profiles.db'), (err) => {
@@ -262,6 +243,28 @@ function userToProfile(row) {
   };
 }
 
+function mergeProfilesAndUsers(profileRows = [], userRows = []) {
+  const profiles = profileRows.map(rowToProfile).filter(Boolean);
+  const seen = new Set();
+  profiles.forEach((profile) => {
+    if (profile.id) seen.add(`id:${String(profile.id).toLowerCase()}`);
+    if (profile.handle) seen.add(`handle:${String(profile.handle).toLowerCase()}`);
+  });
+
+  userRows.forEach((row) => {
+    const profile = userToProfile(row);
+    const keys = [
+      `id:${String(profile.id || '').toLowerCase()}`,
+      `handle:${String(profile.handle || '').toLowerCase()}`
+    ];
+    if (keys.some((key) => seen.has(key))) return;
+    keys.forEach((key) => seen.add(key));
+    profiles.push(profile);
+  });
+
+  return profiles.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
 function authToken(req) {
   const header = String(req.headers.authorization || '');
   return header.startsWith('Bearer ') ? header.slice(7) : '';
@@ -383,24 +386,30 @@ app.post('/api/auth/logout', (req, res) => {
 app.get('/api/profiles', (req, res) => {
   db.all('SELECT * FROM profiles ORDER BY createdAt DESC', (err, rows) => {
     if (err) {
-      res.status(500).json({ error: err.message });
-    } else {
-      res.json(rows.map(rowToProfile).filter(Boolean));
+      return res.status(500).json({ error: err.message });
     }
+    db.all('SELECT * FROM users ORDER BY createdAt DESC', (usersErr, users) => {
+      if (usersErr) return res.status(500).json({ error: usersErr.message });
+      res.json(mergeProfilesAndUsers(rows, users));
+    });
   });
 });
 
 // GET profile by handle
 app.get('/api/profiles/:handle', (req, res) => {
-  const { handle } = req.params;
-  db.get('SELECT * FROM profiles WHERE handle = ?', [handle], (err, row) => {
+  const handle = String(req.params.handle || '').replace(/^@/, '').trim();
+  db.get('SELECT * FROM profiles WHERE lower(handle) = lower(?)', [handle], (err, row) => {
     if (err) {
-      res.status(500).json({ error: err.message });
-    } else if (!row) {
-      res.status(404).json({ error: 'Profile not found' });
-    } else {
-      res.json(rowToProfile(row));
+      return res.status(500).json({ error: err.message });
     }
+    if (row) {
+      return res.json(rowToProfile(row));
+    }
+    db.get('SELECT * FROM users WHERE lower(handle) = lower(?)', [handle], (userErr, user) => {
+      if (userErr) return res.status(500).json({ error: userErr.message });
+      if (!user) return res.status(404).json({ error: 'Profile not found' });
+      res.json(userToProfile(user));
+    });
   });
 });
 
@@ -534,14 +543,14 @@ app.get('/api/posts', (req, res) => {
           if (commentsErr) return res.status(500).json({ error: commentsErr.message });
           const byPost = comments.reduce((map, item) => {
             if (!map[item.postId]) map[item.postId] = [];
-        map[item.postId].push({
-          id: item.id,
-          authorName: item.authorName,
-          authorHandle: item.authorHandle || '',
-          authorAvatar: publicMediaValue(item.authorAvatar) || '',
-          body: item.body,
-          createdAt: item.createdAt
-        });
+            map[item.postId].push({
+              id: item.id,
+              authorName: item.authorName,
+              authorHandle: item.authorHandle || '',
+              authorAvatar: publicMediaValue(item.authorAvatar) || '',
+              body: item.body,
+              createdAt: item.createdAt
+            });
             return map;
           }, {});
           res.json(rows.filter(row => !isDemoPost(row)).map(row => normalizePost(row, byPost[row.id] || [])));
@@ -687,4 +696,14 @@ app.get('/api/check/:handle', (req, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`📍 Open http://localhost:${PORT}/index.html in your browser`);
+
+  // Keepalive — не даёт Render засыпать на бесплатном плане
+  const selfUrl = process.env.RENDER_EXTERNAL_URL || '';
+  if (selfUrl) {
+    setInterval(() => {
+      fetch(`${selfUrl}/api/posts`)
+        .then(() => console.log('Keepalive ping sent'))
+        .catch(() => {});
+    }, 10 * 60 * 1000); // каждые 10 минут
+  }
 });
