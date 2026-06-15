@@ -30,7 +30,7 @@
       background: radial-gradient(circle at top left, #f3ecff 0, transparent 28rem), var(--bg);
       color: var(--ink);
       font-family: Inter, "Segoe UI", Arial, sans-serif;
-      overflow: hidden;
+      overflow-x: hidden;
     }
 
     button,
@@ -48,7 +48,7 @@
 
     #root {
       min-height: 100vh;
-      display: flex;
+      display: block;
       background: transparent;
     }
 
@@ -415,8 +415,7 @@
       grid-template-columns: minmax(0, 1fr) 300px;
       gap: 22px;
       padding: 22px 24px 110px;
-      overflow: auto;
-      height: calc(100vh - 72px);
+      overflow: visible;
     }
 
     .content {
@@ -988,6 +987,20 @@
       user-select: none;
     }
 
+    .pick-file-btn.secondary {
+      color: #2f3342;
+      background: #fff;
+      border: 1px solid #dcd5ff;
+      box-shadow: 0 10px 22px rgba(124, 58, 237, .08);
+    }
+
+    .file-picks {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     .upload-hint {
       display: block;
       color: #7c8190;
@@ -1024,7 +1037,7 @@
 
     .upload-fields {
       display: grid;
-      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
       gap: 10px;
       margin-top: 12px;
     }
@@ -1037,6 +1050,10 @@
       outline: 0;
       padding: 0 12px;
       background: #fff;
+    }
+
+    .upload-fields .wide-field {
+      grid-column: span 2;
     }
 
     .upload-fields input:focus {
@@ -1261,6 +1278,18 @@
       .upload-fields {
         grid-template-columns: 1fr;
       }
+
+      .upload-fields .wide-field {
+        grid-column: auto;
+      }
+
+      .file-picks {
+        width: 100%;
+      }
+
+      .pick-file-btn {
+        width: 100%;
+      }
     }
   </style>
 </head>
@@ -1343,9 +1372,13 @@
           <section class="upload-panel" id="uploadPanel">
             <div class="upload-title">Добавить свой трек</div>
             <div class="drop-zone" id="dropZone">
-              <input type="file" accept="audio/*,image/*" multiple id="fileInput">
-              <span><strong>Добавь аудио и обложку</strong><span class="upload-hint">MP3, M4A, WAV, AAC, FLAC или OGG. На iPhone нажми кнопку ниже и выбери файл из «Файлы».</span></span>
-              <label class="pick-file-btn" for="fileInput" id="pickFileBtn"><span>+</span>Выбрать файл</label>
+              <input type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.flac,.ogg,.opus" id="audioFileInput">
+              <input type="file" accept="image/*,.jpg,.jpeg,.png,.webp,.gif" id="coverFileInput">
+              <span><strong>Добавь аудио и обложку</strong><span class="upload-hint">На iPhone выбери аудио отдельно через «Файлы». MP3 и M4A работают лучше всего.</span></span>
+              <div class="file-picks">
+                <label class="pick-file-btn" for="audioFileInput" id="pickAudioBtn"><span>+</span>Выбрать аудио</label>
+                <label class="pick-file-btn secondary" for="coverFileInput" id="pickCoverBtn"><span>▣</span>Обложка</label>
+              </div>
             </div>
             <div class="upload-preview" id="uploadPreview">
               <div class="upload-fallback cover-fallback" id="uploadFallback">♪</div>
@@ -1360,6 +1393,7 @@
               <input id="uploadArtist" placeholder="Артист">
               <input id="uploadAlbum" placeholder="Альбом">
               <input id="uploadDuration" placeholder="Длительность">
+              <input class="wide-field" id="uploadAudioUrl" placeholder="Ссылка на полный MP3/M4A, если файла нет">
             </div>
             <div class="upload-actions" style="margin-top:12px">
               <button class="solid-btn" id="uploadSubmit"><span>✓</span>Добавить</button>
@@ -1442,7 +1476,8 @@
   </div>
 
   <script>
-    const ITUNES_API = 'https://itunes.apple.com/search?media=music&entity=song&limit=50&term=';
+    const ITUNES_API = 'https://itunes.apple.com/search?media=music&entity=song&limit=35&term=';
+    const ITUNES_COUNTRIES = ['US', 'RU', 'GB', 'JP', 'KR', 'DE', 'FR', 'BR', 'IN', 'TR'];
     const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
     let tracks = [
@@ -1479,9 +1514,16 @@
       return (parts[0] || 0) * 60 + (parts[1] || 0);
     };
     const escapeHTML = (value) => String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
-    const normalize = (value) => String(value || '').toLowerCase().trim();
+    const normalize = (value) => String(value || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[ё]/g, 'е')
+      .replace(/[^\p{L}\p{N}]+/gu, ' ')
+      .trim();
     const coverFor = (track) => track.coverURL || track.cover || '';
     const audioFor = (track) => track.audioURL || track.preview || '';
+    const isHttpAudioURL = (value) => /^https?:\/\/.+\.(mp3|m4a|aac|wav|ogg|opus|flac)(\?.*)?$/i.test(String(value || '').trim());
     const fileExt = (file) => String(file?.name || '').split('.').pop().toLowerCase();
     const isAudioFile = (file) => file?.type?.startsWith('audio') || ['mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'opus'].includes(fileExt(file));
     const isImageFile = (file) => file?.type?.startsWith('image') || ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fileExt(file));
@@ -1530,8 +1572,25 @@
     }
 
     async function searchOnline(query) {
-      const data = await fetchJSON(ITUNES_API + encodeURIComponent(query));
-      return (data.results || []).filter((item) => item.trackName).map(mapItunesItem);
+      const compactQuery = query.replace(/[^\p{L}\p{N}\s'-]+/gu, ' ').replace(/\s+/g, ' ').trim();
+      const queries = [...new Set([query, compactQuery].filter(Boolean))];
+      const requests = [];
+      for (const term of queries) {
+        for (const country of ITUNES_COUNTRIES) {
+          requests.push(
+            fetchJSON(`${ITUNES_API}${encodeURIComponent(term)}&country=${country}&lang=en_us`)
+              .then((data) => data.results || [])
+              .catch(() => [])
+          );
+        }
+      }
+      const results = (await Promise.all(requests)).flat();
+      const unique = new Map();
+      results.filter((item) => item.trackName).forEach((item) => {
+        const key = normalize(`${item.trackName} ${item.artistName} ${item.collectionName}`);
+        if (!unique.has(key)) unique.set(key, mapItunesItem(item));
+      });
+      return [...unique.values()];
     }
 
     function findExisting(incoming) {
@@ -1918,7 +1977,10 @@
     }
 
     function wireUpload() {
-      $('fileInput').addEventListener('change', function () {
+      $('audioFileInput').addEventListener('change', function () {
+        handleSelectedFiles(this.files);
+      });
+      $('coverFileInput').addEventListener('change', function () {
         handleSelectedFiles(this.files);
       });
 
@@ -1940,9 +2002,15 @@
 
       $('uploadSubmit').addEventListener('click', () => {
         const title = $('uploadTitle').value.trim();
-        if (!pendingAudioURL) {
-          $('fileInput').click();
-          showToast('Сначала выбери аудиофайл для трека.');
+        const audioUrl = $('uploadAudioUrl').value.trim();
+        if (!pendingAudioURL && !audioUrl) {
+          $('audioFileInput').click();
+          showToast('Сначала выбери аудиофайл или вставь прямую ссылку на MP3/M4A.');
+          return;
+        }
+        if (audioUrl && !isHttpAudioURL(audioUrl)) {
+          $('uploadAudioUrl').focus();
+          showToast('Ссылка должна вести прямо на аудиофайл: .mp3, .m4a, .aac, .wav, .ogg или .flac.');
           return;
         }
         if (!title) {
@@ -1959,14 +2027,16 @@
           cover: '',
           coverURL: pendingCoverURL,
           preview: '',
-          audioURL: pendingAudioURL,
+          audioURL: pendingAudioURL || audioUrl,
           source: 'local'
         };
         tracks.unshift(track);
         currentIndex = 0;
         pendingAudioURL = '';
         pendingCoverURL = '';
-        ['uploadTitle', 'uploadArtist', 'uploadAlbum', 'uploadDuration'].forEach((id) => $(id).value = '');
+        ['uploadTitle', 'uploadArtist', 'uploadAlbum', 'uploadDuration', 'uploadAudioUrl'].forEach((id) => $(id).value = '');
+        $('audioFileInput').value = '';
+        $('coverFileInput').value = '';
         $('uploadPreview').classList.remove('show');
         $('uploadCover').classList.add('hidden');
         $('uploadFallback').classList.remove('hidden');
