@@ -40,6 +40,9 @@
     button {
       border: 0;
       cursor: pointer;
+      appearance: none;
+      background: transparent;
+      color: inherit;
     }
 
     #root {
@@ -141,7 +144,7 @@
       flex: 0 0 auto;
     }
 
-    .main {
+    .app-main {
       min-width: 0;
       flex: 1;
       display: flex;
@@ -684,9 +687,12 @@
     }
 
     .side-panel {
-      position: sticky;
+      position: fixed;
       top: 94px;
-      align-self: start;
+      right: 24px;
+      width: 300px;
+      max-height: calc(100vh - 210px);
+      overflow: auto;
       padding: 18px;
     }
 
@@ -767,7 +773,7 @@
       border-radius: 13px;
     }
 
-    .control-btn.main {
+    .control-btn.primary-control {
       width: 50px;
       height: 50px;
       border-radius: 50%;
@@ -1003,10 +1009,6 @@
         grid-template-columns: 1fr;
       }
 
-      .side-panel {
-        position: static;
-      }
-
       .mix-grid {
         grid-template-columns: repeat(2, minmax(150px, 1fr));
       }
@@ -1045,6 +1047,10 @@
 
       .workspace {
         padding: 14px 12px 130px;
+      }
+
+      .side-panel {
+        display: none;
       }
 
       .hero {
@@ -1105,7 +1111,7 @@
       <button class="playlist-link" data-mix="work"><span class="dot" style="background:var(--amber)"></span>Для работы</button>
     </aside>
 
-    <main class="main">
+    <main class="app-main">
       <header class="topbar">
         <div class="history-controls" aria-hidden="true">
           <button class="round-btn" title="Назад">‹</button>
@@ -1219,7 +1225,7 @@
           <div class="side-controls">
             <button class="control-btn" id="sideShuffle" title="Перемешать">⇄</button>
             <button class="control-btn" id="sidePrev" title="Предыдущий">‹</button>
-            <button class="control-btn main" id="sidePlay" title="Играть"><span id="sidePlayIcon">▶</span></button>
+            <button class="control-btn primary-control" id="sidePlay" title="Играть"><span id="sidePlayIcon">▶</span></button>
             <button class="control-btn" id="sideNext" title="Следующий">›</button>
             <button class="control-btn" id="sideRepeat" title="Повтор">↻</button>
           </div>
@@ -1247,7 +1253,7 @@
         <div class="mini-controls">
           <button class="control-btn" id="shuffleBtn" title="Перемешать">⇄</button>
           <button class="control-btn" id="prevBtn" title="Предыдущий">‹</button>
-          <button class="control-btn main" id="playBtn" title="Играть"><span id="playIcon">▶</span></button>
+          <button class="control-btn primary-control" id="playBtn" title="Играть"><span id="playIcon">▶</span></button>
           <button class="control-btn" id="nextBtn" title="Следующий">›</button>
           <button class="control-btn" id="repeatBtn" title="Повтор">↻</button>
         </div>
@@ -1265,7 +1271,7 @@
   </div>
 
   <script>
-    const ITUNES_API = 'https://itunes.apple.com/search?media=music&entity=song&limit=25&term=';
+    const ITUNES_API = 'https://itunes.apple.com/search?media=music&entity=song&limit=50&term=';
     const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
     let tracks = [

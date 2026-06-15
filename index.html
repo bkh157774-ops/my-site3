@@ -12061,6 +12061,21 @@ body.post-comments-open .app-dock{
   pointer-events:none;
   transform:translateX(-50%) translateY(18px) scale(.96)!important;
 }
+.app-dock .app-dock-music span{
+  background:linear-gradient(135deg,#f5d9ff 0%,#a78bfa 48%,#7c3aed 100%)!important;
+  color:#171327!important;
+  border:2px solid rgba(255,255,255,.86)!important;
+  box-shadow:0 12px 28px rgba(124,58,237,.32),inset 0 1px 0 rgba(255,255,255,.6)!important;
+}
+.app-dock .app-dock-music:hover span,
+.app-dock .app-dock-music:focus-visible span{
+  transform:translateY(-1px) scale(1.03);
+}
+.app-dock .app-dock-music.active{
+  background:linear-gradient(135deg,#faf5ff,#ede9fe)!important;
+  color:#5b21b6!important;
+  box-shadow:0 16px 34px rgba(124,58,237,.24)!important;
+}
 @media(max-width:760px){
   .post-comments-backdrop{
     z-index:920!important;
@@ -12422,6 +12437,7 @@ body.post-comments-open .app-dock{
 </div>
 <div class="app-dock" aria-label="Навигация Lumae">
   <button type="button" data-dock-key="post" onclick="return openPostComposer()" aria-label="Новый пост"><span class="dock-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg></span><b>Пост</b></button>
+  <button type="button" class="app-dock-music" data-dock-key="music" onclick="return navToMusic()" aria-label="Музыка"><span class="dock-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 18V5l10-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="16" cy="16" r="3"></circle></svg></span><b>Музыка</b></button>
   <button type="button" data-dock-key="profile" onclick="return openSelfProfile()" aria-label="Твой профиль"><span class="dock-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-8 0v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span><b>Профиль</b></button>
   <button type="button" class="app-dock-avatar" id="appDockAvatar" onclick="return openSelfProfile()" aria-label="Твой профиль">L</button>
 </div>
@@ -13592,12 +13608,8 @@ function openPostComposer(){
   return false;
 }
 function navToMusic(){
-  navToTab('posts');
-  updateAppDock('post');
-  setTimeout(()=>{
-    document.getElementById('postTrackFile')?.closest('.post-composer')?.classList.add('music-focus');
-    document.getElementById('postsBoard')?.scrollIntoView({behavior:'smooth',block:'start'});
-  },80);
+  updateAppDock('music');
+  window.location.href='wavely_v3.html';
   return false;
 }
 function authHeaders(){
