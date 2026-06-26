@@ -1480,14 +1480,7 @@
     const ITUNES_COUNTRIES = ['US', 'RU', 'GB', 'JP', 'KR', 'DE', 'FR', 'BR', 'IN', 'TR'];
     const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
 
-    let tracks = [
-      { id: 1, title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', duration: '3:20', cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/9e/f8/6b/9ef86bb5-e037-1d51-e6b1-b1f9b38a6a35/19UM1IM22700.jpg/600x600bb.jpg', preview: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/01/27/e8/0127e88e-7b73-1b50-af62-bfc81c3fbc70/mzaf_15093543024694741108.plus.aac.p.m4a' },
-      { id: 2, title: 'Levitating', artist: 'Dua Lipa', album: 'Future Nostalgia', duration: '3:23', cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music124/v4/08/1e/4e/081e4ea2-1c56-c4b8-f4bf-68d7ea6d1b9e/20UMGIM04705.rgb.jpg/600x600bb.jpg', preview: '' },
-      { id: 3, title: 'As It Was', artist: 'Harry Styles', album: "Harry's House", duration: '2:47', cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music122/v4/78/e8/e4/78e8e4c0-e3db-a95d-85b3-88c12f987b73/886449987863.jpg/600x600bb.jpg', preview: '' },
-      { id: 4, title: 'STAY', artist: 'The Kid LAROI & Justin Bieber', album: 'STAY', duration: '2:21', cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/24/c6/43/24c64344-c2f5-4e2e-8fbd-7c18f2d7e4da/21UMGIM48782.rgb.jpg/600x600bb.jpg', preview: '' },
-      { id: 5, title: 'Heat Waves', artist: 'Glass Animals', album: 'Dreamland', duration: '3:59', cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/17/cf/79/17cf79c7-d01a-ba76-0481-89e3aaef7c73/886449072422.jpg/600x600bb.jpg', preview: '' },
-      { id: 6, title: 'Planeta 812 Vmeste (Nightcore)', artist: 'Search result', album: 'Wavely Finds', duration: '0:30', cover: '', preview: '' }
-    ];
+    let tracks = [];
 
     let currentIndex = 0;
     let isPlaying = false;
@@ -1498,6 +1491,79 @@
     let favorites = new Set(JSON.parse(localStorage.getItem('wavely:favorites') || '[]'));
     let recent = [];
     let showFavOnly = false;
+    
+    function saveTracks() {
+      try {
+        const MAX_TRACKS = 400;
+        if (tracks.length > MAX_TRACKS) {
+          tracks = tracks.slice(0, MAX_TRACKS);
+        }
+        localStorage.setItem('wavely:tracks', JSON.stringify(tracks));
+        console.log('✓ Сохранено ' + tracks.length + ' из 400 треков');
+      } catch(e) {
+        console.error('✗ Ошибка сохранения:', e);
+        if (e.name === 'QuotaExceededError') {
+          showToast('Хранилище полно. Удали старые треки.');
+        }
+      }
+    }
+    
+    function loadTracks() {
+      try {
+        const saved = localStorage.getItem('wavely:tracks');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            tracks = parsed;
+            nextId = Math.max(...tracks.map(t => t.id || 0)) + 1;
+            console.log('✓ Загружено ' + tracks.length + ' треков (макс 400)');
+            return;
+          }
+        }
+        console.log('База пуста - начнем с нуля');
+      } catch(e) {
+        console.error('Ошибка загрузки:', e);
+      }
+    }
+    
+    function saveState() {
+      try {
+        const state = {
+          currentIndex: currentIndex,
+          volume: $('volume')?.value || 80,
+          currentTime: audio?.currentTime || 0,
+          favorites: [...favorites]
+        };
+        localStorage.setItem('wavely:state', JSON.stringify(state));
+      } catch(e) {
+        console.error('Ошибка сохранения состояния:', e);
+      }
+    }
+    
+    function loadState() {
+      try {
+        const saved = localStorage.getItem('wavely:state');
+        if (saved) {
+          const state = JSON.parse(saved);
+          if (typeof state.volume === 'number') {
+            const vol = $('volume');
+            if (vol) {
+              vol.value = state.volume;
+              if (audio) audio.volume = state.volume / 100;
+            }
+          }
+          if (typeof state.currentIndex === 'number' && state.currentIndex < tracks.length) {
+            currentIndex = Math.max(0, state.currentIndex);
+          }
+          if (Array.isArray(state.favorites)) {
+            favorites = new Set(state.favorites);
+          }
+          console.log('✓ Состояние восстановлено');
+        }
+      } catch(e) {
+        console.error('Ошибка загрузки состояния:', e);
+      }
+    }
     let pendingAudioURL = '';
     let pendingCoverURL = '';
     let playToken = 0;
@@ -1579,8 +1645,14 @@
         for (const country of ITUNES_COUNTRIES) {
           requests.push(
             fetchJSON(`${ITUNES_API}${encodeURIComponent(term)}&country=${country}&lang=en_us`)
-              .then((data) => data.results || [])
-              .catch(() => [])
+              .then((data) => {
+                console.log('Получено результатов: ' + (data?.results?.length || 0));
+                return data.results || [];
+              })
+              .catch((e) => {
+                console.error('Ошибка API:', e);
+                return [];
+              })
           );
         }
       }
@@ -1590,7 +1662,9 @@
         const key = normalize(`${item.trackName} ${item.artistName} ${item.collectionName}`);
         if (!unique.has(key)) unique.set(key, mapItunesItem(item));
       });
-      return [...unique.values()];
+      const final = [...unique.values()];
+      console.log('Найдено уникальных: ' + final.length);
+      return final;
     }
 
     function findExisting(incoming) {
@@ -1604,10 +1678,12 @@
       const existing = findExisting(item);
       if (existing >= 0) {
         tracks[existing] = { ...tracks[existing], ...item, id: tracks[existing].id };
+        saveTracks();
         return existing;
       }
       const track = { id: nextId++, ...item };
       tracks.push(track);
+      saveTracks();
       return tracks.length - 1;
     }
 
@@ -1684,6 +1760,7 @@
     async function playTrack(index = currentIndex) {
       if (index < 0 || index >= tracks.length) return;
       currentIndex = index;
+      saveState();
       const token = ++playToken;
       let track = tracks[currentIndex];
       syncCurrentUI();
@@ -1787,6 +1864,7 @@
       if (!id) return;
       favorites.has(id) ? favorites.delete(id) : favorites.add(id);
       saveFavorites();
+      saveState();
       syncCurrentUI();
     }
 
@@ -1909,24 +1987,50 @@
 
     function handleSearch(query) {
       clearTimeout(searchTimer);
-      const q = query.trim();
-      const localMatches = q
-        ? tracks.filter((track) => normalize(track.title + ' ' + track.artist + ' ' + track.album).includes(normalize(q))).slice(0, 8)
-        : [];
+      const q = query.trim().toLowerCase();
+      
+      if (!q) {
+        $('searchResults').classList.remove('open');
+        return;
+      }
+      
+      const normalizedQ = normalize(q);
+      const localMatches = tracks.filter((track) => {
+        const title = normalize(track.title || '');
+        const artist = normalize(track.artist || '');
+        const album = normalize(track.album || '');
+        const combined = title + ' ' + artist + ' ' + album;
+        
+        return combined.includes(normalizedQ) ||
+               title.startsWith(normalizedQ) ||
+               artist.startsWith(normalizedQ);
+      }).sort((a, b) => {
+        const titleMatch = (a.title || '').toLowerCase().startsWith(q) ? -1 : 1;
+        return titleMatch;
+      });
+      
+      console.log('🔍 Локальных найдено: ' + localMatches.length + ', запрос: ' + q);
       renderSearch(localMatches, [], q, true);
-      if (!q) return;
-      $('searchStatus').textContent = 'ищу онлайн';
+      
+      $('searchStatus').textContent = 'ищу онлайн...';
       searchTimer = setTimeout(async () => {
         try {
           const online = await searchOnline(q);
-          renderSearch(localMatches, online.slice(0, 18), q);
-        } catch {
+          console.log('🌐 Онлайн найдено: ' + online.length);
+          renderSearch(localMatches, online.slice(0, 30), q);
+          if (online.length === 0 && localMatches.length === 0) {
+            showToast('Ничего не найдено. Попробуй другое название.');
+          }
+        } catch (err) {
+          console.error('❌ Ошибка поиска:', err);
           renderSearch(localMatches, [], q);
-          showToast('Онлайн-поиск сейчас не ответил, но локальные треки доступны.');
+          if (localMatches.length > 0) {
+            showToast('Онлайн-поиск недоступен, показаны локальные треки.');
+          }
         } finally {
           $('searchStatus').textContent = 'онлайн: превью 30 сек';
         }
-      }, 450);
+      }, 250);
     }
 
     function toggleUpload(force) {
@@ -2031,6 +2135,8 @@
           source: 'local'
         };
         tracks.unshift(track);
+        saveTracks();
+        saveState();
         currentIndex = 0;
         pendingAudioURL = '';
         pendingCoverURL = '';
@@ -2051,7 +2157,10 @@
       ['nextBtn', 'sideNext'].forEach((id) => $(id).addEventListener('click', nextTrack));
       ['prevBtn', 'sidePrev'].forEach((id) => $(id).addEventListener('click', prevTrack));
       ['miniSeek', 'sideSeek'].forEach((id) => $(id).addEventListener('click', seekByClick));
-      ['volume', 'sideVolume'].forEach((id) => $(id).addEventListener('input', (event) => setVolume(event.target.value)));
+      ['volume', 'sideVolume'].forEach((id) => $(id).addEventListener('input', (event) => {
+        setVolume(event.target.value);
+        saveState();
+      }));
       ['shuffleBtn', 'sideShuffle'].forEach((id) => $(id).addEventListener('click', () => {
         shuffle = !shuffle;
         $('shuffleBtn').classList.toggle('active', shuffle);
@@ -2099,11 +2208,22 @@
     }
 
     function init() {
+      loadTracks();
+      if (!tracks.length) {
+        tracks = [
+          { id: 1, title: 'Blinding Lights', artist: 'The Weeknd', album: 'After Hours', duration: '3:20', cover: 'https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/9e/f8/6b/9ef86bb5-e037-1d51-e6b1-b1f9b38a6a35/19UM1IM22700.jpg/600x600bb.jpg', preview: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview112/v4/01/27/e8/0127e88e-7b73-1b50-af62-bfc81c3fbc70/mzaf_15093543024694741108.plus.aac.p.m4a', source: 'demo' }
+        ];
+        nextId = 100;
+      }
+      loadState();
       saveFavorites();
       bindControls();
       wireUpload();
       renderRecent();
-      syncCurrentUI();
+      renderTracks();
+      if (tracks.length > 0) {
+        syncCurrentUI();
+      }
       updateProgress();
     }
 

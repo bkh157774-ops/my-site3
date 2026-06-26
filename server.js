@@ -4,16 +4,22 @@ import bodyParser from 'body-parser';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
+const uploadDir = path.join(__dirname, 'uploads');
+const maxUploadBytes = 24 * 1024 * 1024;
+const inlineMediaResponseLimit = 256 * 1024;
+fs.mkdirSync(uploadDir, { recursive: true });
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 app.use(express.static(__dirname));
 
 // Database setup
@@ -145,6 +151,58 @@ function addColumn(table, definition) {
 function publicMediaValue(value) {
   const raw = String(value || '').trim();
   if (!raw || /^(lumae-media:|blob:)/i.test(raw)) return null;
+  if (/^data:/i.test(raw) && raw.length > inlineMediaResponseLimit) return null;
+  return raw;
+}
+
+function uploadExtension(mime, name = '') {
+  const byMime = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/ogg': '.ogv',
+    'audio/mpeg': '.mp3',
+    'audio/mp3': '.mp3',
+    'audio/mp4': '.m4a',
+    'audio/wav': '.wav',
+    'audio/ogg': '.ogg',
+    'audio/aac': '.aac',
+    'audio/flac': '.flac'
+  };
+  const ext = path.extname(String(name || '')).toLowerCase();
+  return byMime[String(mime || '').toLowerCase()] || (ext && ext.length <= 8 ? ext : '.bin');
+}
+
+function parseDataUrl(value) {
+  const match = String(value || '').match(/^data:([^;,]+);base64,([\s\S]+)$/i);
+  if (!match) return null;
+  const mime = match[1].toLowerCase();
+  if (!/^(image|video|audio)\//.test(mime)) return null;
+  const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+  return { mime, buffer };
+}
+
+async function saveDataUrlMedia(value, scope = 'media', name = '') {
+  const parsed = parseDataUrl(value);
+  if (!parsed) return publicMediaValue(value) || '';
+  if (parsed.buffer.length > maxUploadBytes) {
+    const error = new Error('Media file is too large');
+    error.status = 413;
+    throw error;
+  }
+  const safeScope = String(scope || 'media').replace(/[^a-z0-9_-]/gi, '').slice(0, 28) || 'media';
+  const filename = `${safeScope}-${Date.now().toString(36)}-${crypto.randomBytes(5).toString('hex')}${uploadExtension(parsed.mime, name)}`;
+  await fs.promises.writeFile(path.join(uploadDir, filename), parsed.buffer);
+  return `/uploads/${filename}`;
+}
+
+async function mediaValueForStorage(value, scope = 'media', name = '') {
+  const raw = String(value || '').trim();
+  if (!raw || /^(lumae-media:|blob:)/i.test(raw)) return '';
+  if (/^data:/i.test(raw)) return saveDataUrlMedia(raw, scope, name);
   return raw;
 }
 
@@ -382,6 +440,19 @@ app.post('/api/auth/logout', (req, res) => {
   db.run('DELETE FROM sessions WHERE token = ?', [token], () => res.json({ success: true }));
 });
 
+app.post('/api/uploads', async (req, res) => {
+  try {
+    const dataUrl = String(req.body.dataUrl || '');
+    const scope = String(req.body.scope || 'media');
+    const name = String(req.body.name || 'media');
+    const url = await saveDataUrlMedia(dataUrl, scope, name);
+    if (!url) return res.status(400).json({ error: 'Valid media data is required' });
+    res.json({ success: true, url });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || 'Upload failed' });
+  }
+});
+
 // GET all profiles
 app.get('/api/profiles', (req, res) => {
   db.all('SELECT * FROM profiles ORDER BY createdAt DESC', (err, rows) => {
@@ -414,53 +485,57 @@ app.get('/api/profiles/:handle', (req, res) => {
 });
 
 // POST create/update profile
-app.post('/api/profiles', (req, res) => {
-  const source = req.body.profile && typeof req.body.profile === 'object' ? req.body.profile : req.body;
-  const safeProfile = {
-    ...source,
-    bannerImgSrc: publicMediaValue(source.bannerImgSrc || source.banner),
-    bannerVidSrc: publicMediaValue(source.bannerVidSrc),
-    avaImgSrc: publicMediaValue(source.avaImgSrc || source.avatar),
-    avaVidSrc: publicMediaValue(source.avaVidSrc)
-  };
-  const { id, handle, name, phone, desc, game, status, tags, rarity, bannerImgSrc, avaImgSrc } = safeProfile;
+app.post('/api/profiles', async (req, res) => {
+  try {
+    const source = req.body.profile && typeof req.body.profile === 'object' ? req.body.profile : req.body;
+    const safeProfile = {
+      ...source,
+      bannerImgSrc: await mediaValueForStorage(source.bannerImgSrc || source.banner, 'profile-banner', source.bannerName),
+      bannerVidSrc: await mediaValueForStorage(source.bannerVidSrc, 'profile-banner', source.bannerName),
+      avaImgSrc: await mediaValueForStorage(source.avaImgSrc || source.avatar, 'profile-avatar', source.avatarName),
+      avaVidSrc: await mediaValueForStorage(source.avaVidSrc, 'profile-avatar', source.avatarName)
+    };
+    const { id, handle, name, phone, desc, game, status, tags, rarity, bannerImgSrc, avaImgSrc } = safeProfile;
 
-  if (!handle || !name) {
-    return res.status(400).json({ error: 'Handle and name are required' });
-  }
-
-  const tagsJson = JSON.stringify(tags || []);
-  const fullProfile = JSON.stringify(safeProfile);
-
-  db.run(
-    `INSERT INTO profiles (profileId, handle, name, phone, game, desc, status, tags, rarity, banner, avatar, fullProfile)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(handle) DO UPDATE SET
-      profileId=excluded.profileId,
-      name=excluded.name,
-      phone=excluded.phone,
-      game=excluded.game,
-      desc=excluded.desc,
-      status=excluded.status,
-      tags=excluded.tags,
-      rarity=excluded.rarity,
-      banner=excluded.banner,
-      avatar=excluded.avatar,
-      fullProfile=excluded.fullProfile,
-      updatedAt=CURRENT_TIMESTAMP`,
-    [id || '', handle, name, phone || '', game || desc || '', desc || game || '', status || '', tagsJson, rarity || 'common', bannerImgSrc || '', avaImgSrc || '', fullProfile],
-    function(err) {
-      if (err) {
-        res.status(500).json({ error: err.message });
-      } else {
-        res.json({ 
-          success: true, 
-          id: this.lastID,
-          message: 'Profile saved successfully'
-        });
-      }
+    if (!handle || !name) {
+      return res.status(400).json({ error: 'Handle and name are required' });
     }
-  );
+
+    const tagsJson = JSON.stringify(tags || []);
+    const fullProfile = JSON.stringify(safeProfile);
+
+    db.run(
+      `INSERT INTO profiles (profileId, handle, name, phone, game, desc, status, tags, rarity, banner, avatar, fullProfile)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(handle) DO UPDATE SET
+        profileId=excluded.profileId,
+        name=excluded.name,
+        phone=excluded.phone,
+        game=excluded.game,
+        desc=excluded.desc,
+        status=excluded.status,
+        tags=excluded.tags,
+        rarity=excluded.rarity,
+        banner=excluded.banner,
+        avatar=excluded.avatar,
+        fullProfile=excluded.fullProfile,
+        updatedAt=CURRENT_TIMESTAMP`,
+      [id || '', handle, name, phone || '', game || desc || '', desc || game || '', status || '', tagsJson, rarity || 'common', bannerImgSrc || '', avaImgSrc || '', fullProfile],
+      function(err) {
+        if (err) {
+          res.status(500).json({ error: err.message });
+        } else {
+          res.json({
+            success: true,
+            id: this.lastID,
+            message: 'Profile saved successfully'
+          });
+        }
+      }
+    );
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || 'Profile save failed' });
+  }
 });
 
 app.get('/api/admin/applications', (req, res) => {
@@ -529,17 +604,37 @@ app.get('/api/posts', (req, res) => {
   getAuthUser(req, (authErr, user) => {
     if (authErr) return res.status(500).json({ error: authErr.message });
     db.all(
-      `SELECT posts.*,
+      `SELECT
+        posts.id,
+        posts.userId,
+        posts.authorName,
+        posts.authorHandle,
+        CASE WHEN posts.authorAvatar LIKE 'data:%' AND length(posts.authorAvatar) > ? THEN '' ELSE posts.authorAvatar END AS authorAvatar,
+        posts.authorProfileId,
+        posts.body,
+        CASE WHEN posts.mediaUrl LIKE 'data:%' AND length(posts.mediaUrl) > ? THEN '' ELSE posts.mediaUrl END AS mediaUrl,
+        posts.mediaType,
+        CASE WHEN posts.trackUrl LIKE 'data:%' AND length(posts.trackUrl) > ? THEN '' ELSE posts.trackUrl END AS trackUrl,
+        posts.trackName,
+        posts.views,
+        posts.createdAt,
         COUNT(post_likes.userId) AS likes,
         MAX(CASE WHEN post_likes.userId = ? THEN 1 ELSE 0 END) AS likedByMe
      FROM posts
      LEFT JOIN post_likes ON post_likes.postId = posts.id
      GROUP BY posts.id
      ORDER BY posts.createdAt DESC`,
-      [user?.id || ''],
+      [inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, user?.id || ''],
       (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        db.all('SELECT * FROM post_comments ORDER BY createdAt ASC', (commentsErr, comments) => {
+        db.all(
+          `SELECT id, postId, userId, authorName, authorHandle,
+            CASE WHEN authorAvatar LIKE 'data:%' AND length(authorAvatar) > ? THEN '' ELSE authorAvatar END AS authorAvatar,
+            body, createdAt
+           FROM post_comments
+           ORDER BY createdAt ASC`,
+          [inlineMediaResponseLimit],
+          (commentsErr, comments) => {
           if (commentsErr) return res.status(500).json({ error: commentsErr.message });
           const byPost = comments.reduce((map, item) => {
             if (!map[item.postId]) map[item.postId] = [];
