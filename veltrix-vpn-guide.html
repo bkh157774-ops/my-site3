@@ -1,0 +1,3234 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Как устроен VPN — Veltrix VPN</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg: #F1F0EA;
+      --bg-raise: #E8E7DF;
+      --ink: #111110;
+      --ink-soft: #4A4944;
+      --ink-faint: #8C8A82;
+      --line: rgba(17, 17, 16, 0.13);
+      --line-soft: rgba(17, 17, 16, 0.07);
+      --white: #FCFCFA;
+      --font-display: "Fraunces", serif;
+      --font-body: "Inter", sans-serif;
+      --accent: #8A6A4E;
+      --font-mono: "IBM Plex Mono", monospace;
+      --rail-w: 76px;
+      --topbar-h: 76px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    ::selection {
+      background: var(--ink);
+      color: var(--bg);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: .001ms !important;
+        transition-duration: .001ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
+    /* ================= RAIL ================= */
+    .rail {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: var(--rail-w);
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 30px 0 28px;
+      z-index: 40;
+      background: var(--bg);
+    }
+
+    .rail-mark {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex: none;
+    }
+
+    .rail-mid {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+
+    .rail-progress {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .rail-progress .track {
+      position: relative;
+      width: 2px;
+      height: 130px;
+      background: var(--line);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .rail-progress .fill {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 0%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: height .12s linear;
+    }
+
+    .rail-progress .pct {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: .06em;
+      color: var(--ink-faint);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .rail-progress .pct b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    /* ================= TOPBAR ================= */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: var(--rail-w);
+      right: 0;
+      height: var(--topbar-h);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 34px;
+      z-index: 39;
+      background: rgba(241, 240, 234, 0.92);
+      backdrop-filter: blur(6px);
+    }
+
+    .topbar-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+
+    .topbar-eyebrow b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .topbar-nav {
+      display: flex;
+      gap: 38px;
+    }
+
+    .topbar-nav a {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 13.5px;
+      color: var(--ink-soft);
+    }
+
+    .topbar-nav a span.ti {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-faint);
+      letter-spacing: .06em;
+    }
+
+    .topbar-nav a {
+      transition: color .15s ease;
+    }
+
+    .topbar-nav a:hover {
+      color: var(--ink);
+    }
+
+    .topbar-nav a:hover span.ti {
+      color: var(--accent);
+    }
+
+    .topbar-cta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 9px 9px 9px 18px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: var(--white);
+      transition: background .15s ease;
+    }
+
+    .topbar-cta:hover {
+      background: var(--accent);
+    }
+
+    .topbar-cta .arrow {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--white);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .topbar-cta .arrow svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    body.team-dark {
+      --bg: #08090D;
+      --bg-raise: #11131C;
+      --ink: #F8FAFF;
+      --ink-soft: #C8CEDA;
+      --ink-faint: #8D95A6;
+      --line: rgba(255, 255, 255, 0.15);
+      --line-soft: rgba(255, 255, 255, 0.08);
+      --white: #151823;
+      --accent: #67E8F9;
+    }
+
+    body.team-dark .topbar,
+    body.team-dark .rail {
+      background: rgba(8, 9, 13, 0.92);
+    }
+
+    body.team-dark .topbar-cta {
+      background: #F8FAFF;
+      color: #08090D;
+    }
+
+    body.team-dark .topbar-cta .arrow {
+      background: #08090D;
+      color: #F8FAFF;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .hero-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 13px;
+      background: var(--ink);
+      color: var(--bg);
+      box-shadow: 0 16px 34px rgba(17, 17, 16, 0.12);
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+
+    .hero-btn.secondary {
+      background: transparent;
+      color: var(--ink);
+    }
+
+    .hero-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 44px rgba(17, 17, 16, 0.18);
+    }
+
+    .team-lab {
+      padding: 48px 0 68px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .team-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, .75fr);
+      gap: 28px;
+      align-items: end;
+      margin-bottom: 26px;
+    }
+
+    .team-kicker {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .team-head h2 {
+      font-family: var(--font-display);
+      font-size: clamp(38px, 7vw, 88px);
+      line-height: .9;
+      letter-spacing: 0;
+      max-width: 760px;
+    }
+
+    .team-head p {
+      color: var(--ink-soft);
+      max-width: 560px;
+      margin-top: 18px;
+      font-size: 16px;
+    }
+
+    .team-update {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+      background: rgba(252, 252, 250, .56);
+      box-shadow: 0 20px 50px rgba(17, 17, 16, 0.08);
+    }
+
+    body.team-dark .team-update {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .team-update strong {
+      display: block;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .team-update ul {
+      display: grid;
+      gap: 7px;
+      list-style: none;
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .leadership {
+      margin: 26px 0 24px;
+      padding: 26px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 12% 0%, rgba(103, 232, 249, .24), transparent 34%),
+        radial-gradient(circle at 92% 30%, rgba(244, 114, 182, .24), transparent 32%),
+        linear-gradient(135deg, #07080C, #121522 58%, #07080C);
+      color: #F8FAFF;
+      box-shadow: 0 28px 80px rgba(0, 0, 0, .28);
+      overflow: hidden;
+    }
+
+    .leadership-title {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      color: #F7B955;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      font-size: 14px;
+    }
+
+    .leadership-title:before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: #F7B955;
+      transform: rotate(45deg);
+      box-shadow: 0 0 18px rgba(247, 185, 85, .9);
+    }
+
+    .leadership-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .leader-pill {
+      min-height: 88px;
+      border-radius: 999px;
+      padding: 11px 18px 11px 12px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      background: rgba(255, 255, 255, .07);
+      display: grid;
+      grid-template-columns: 62px 1fr;
+      align-items: center;
+      gap: 14px;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05), 0 16px 34px rgba(0, 0, 0, .24);
+    }
+
+    .avatar {
+      position: relative;
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      flex: none;
+      border: 5px solid rgba(255, 255, 255, .94);
+      color: #fff;
+      font-weight: 900;
+      font-size: 26px;
+      box-shadow: 0 14px 28px rgba(0, 0, 0, .2);
+      transition: transform .18s ease;
+    }
+
+    .avatar:after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      bottom: 3px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #1DE592;
+      border: 3px solid #fff;
+      box-shadow: 0 0 16px rgba(29, 229, 146, .75);
+    }
+
+    .leader-pill:hover .avatar,
+    .employee-card:hover .avatar {
+      transform: scale(1.08);
+    }
+
+    .leader-name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 900;
+      font-size: 18px;
+    }
+
+    .leader-handle {
+      color: #67E8F9;
+      text-shadow: 0 0 16px rgba(103, 232, 249, .95);
+    }
+
+    .leader-role {
+      display: inline-flex;
+      margin-top: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      color: #F7B955;
+      background: rgba(247, 185, 85, .16);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .phone-link {
+      color: #25E28A;
+      font-weight: 900;
+      text-shadow: 0 0 14px rgba(37, 226, 138, .64);
+    }
+
+    .team-stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin: 24px 0;
+    }
+
+    .stat-tile {
+      min-height: 94px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(252, 252, 250, .68);
+    }
+
+    body.team-dark .stat-tile {
+      background: rgba(255, 255, 255, .05);
+    }
+
+    .stat-tile span {
+      display: block;
+      color: var(--ink-faint);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .stat-tile b {
+      display: block;
+      margin-top: 6px;
+      font-size: clamp(20px, 3vw, 30px);
+      line-height: 1;
+    }
+
+    .team-tools {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) auto auto;
+      gap: 12px;
+      margin: 22px 0 18px;
+      align-items: center;
+    }
+
+    .team-search,
+    .team-select,
+    .theme-toggle {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(252, 252, 250, .74);
+      color: var(--ink);
+      padding: 0 16px;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      outline: none;
+    }
+
+    body.team-dark .team-search,
+    body.team-dark .team-select,
+    body.team-dark .theme-toggle {
+      background: rgba(255, 255, 255, .06);
+      color: #F8FAFF;
+    }
+
+    .theme-toggle {
+      cursor: pointer;
+    }
+
+    .filter-row,
+    .rank-row,
+    .badge-row,
+    .tag-row.tight {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .filter-btn,
+    .mini-pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      min-height: 34px;
+      padding: 0 12px;
+      background: rgba(252, 252, 250, .64);
+      color: var(--ink-soft);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    body.team-dark .filter-btn,
+    body.team-dark .mini-pill {
+      background: rgba(255, 255, 255, .06);
+    }
+
+    .filter-btn.is-active {
+      background: var(--ink);
+      color: var(--bg);
+      border-color: var(--ink);
+    }
+
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 22px;
+    }
+
+    .employee-card {
+      position: relative;
+      min-height: 330px;
+      border-radius: 28px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(17, 17, 16, .12);
+      transition: transform .2s ease, box-shadow .2s ease;
+      cursor: pointer;
+    }
+
+    body.team-dark .employee-card {
+      background: #131723;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .34);
+    }
+
+    .employee-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 30px 80px rgba(17, 17, 16, .18);
+    }
+
+    .employee-cover {
+      height: 128px;
+      border-radius: 0 0 28px 28px;
+      background: linear-gradient(135deg, var(--c1), var(--c2));
+    }
+
+    .employee-body {
+      padding: 0 26px 24px;
+    }
+
+    .employee-card .avatar {
+      width: 76px;
+      height: 76px;
+      margin-top: -38px;
+      font-size: 30px;
+      background: linear-gradient(135deg, var(--c1), var(--c2));
+    }
+
+    .employee-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .employee-name {
+      font-size: 28px;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .employee-role {
+      color: var(--ink-faint);
+      font-size: 13px;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+
+    .rating-button {
+      border: 0;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 900;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .rating-button:before {
+      content: "★";
+      color: #F59E0B;
+      margin-right: 4px;
+    }
+
+    .rank-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 0 12px;
+      border-radius: 999px;
+      font-weight: 900;
+      font-size: 12px;
+      margin: 18px 0;
+      color: var(--badge);
+      background: color-mix(in srgb, var(--badge) 14%, transparent);
+    }
+
+    .employee-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      border-top: 1px solid var(--line-soft);
+      padding-top: 14px;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--ink-faint);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .metric b {
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .status-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #059669;
+    }
+
+    .status-dot:before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 12px currentColor;
+    }
+
+    .activity-bar,
+    .progress-bar {
+      height: 10px;
+      border-radius: 999px;
+      background: var(--line-soft);
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    .activity-bar span,
+    .progress-bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      width: var(--w);
+      background: linear-gradient(90deg, #22C55E, #67E8F9, #A78BFA);
+    }
+
+    .employee-extra {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height .24s ease, opacity .18s ease, margin-top .18s ease;
+    }
+
+    .employee-card.is-open .employee-extra {
+      max-height: 340px;
+      opacity: 1;
+      margin-top: 16px;
+    }
+
+    .employee-bio {
+      color: var(--ink-soft);
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .team-panels {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .team-panel {
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      background: rgba(252, 252, 250, .58);
+    }
+
+    body.team-dark .team-panel {
+      background: rgba(255, 255, 255, .05);
+    }
+
+    .team-panel h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+    }
+
+    .rank-list {
+      display: grid;
+      gap: 9px;
+      list-style: none;
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .rank-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line-soft);
+      padding-bottom: 8px;
+    }
+
+    .progress-note {
+      display: grid;
+      gap: 8px;
+      color: var(--ink-soft);
+      font-size: 13px;
+    }
+
+    .progress-note b {
+      color: var(--ink);
+      font-size: 28px;
+      line-height: 1;
+    }
+
+    .review-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+      background: rgba(0, 0, 0, .48);
+    }
+
+    .review-modal.is-open {
+      display: flex;
+    }
+
+    .review-box {
+      width: min(440px, 100%);
+      border-radius: 24px;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--ink);
+      box-shadow: 0 34px 90px rgba(0, 0, 0, .38);
+    }
+
+    .review-box h3 {
+      margin-bottom: 12px;
+      font-size: 22px;
+    }
+
+    .review-box ul {
+      display: grid;
+      gap: 10px;
+      list-style: none;
+      color: var(--ink-soft);
+    }
+
+    .review-close {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: transparent;
+      color: var(--ink);
+      font-size: 20px;
+      cursor: pointer;
+      float: right;
+    }
+
+    @media (max-width:1100px) {
+      .team-grid,
+      .team-panels,
+      .leadership-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .team-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width:900px) {
+      .topbar-nav {
+        display: none;
+      }
+
+      .team-head,
+      .team-tools,
+      .team-grid,
+      .team-panels,
+      .leadership-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .team-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .leader-pill {
+        border-radius: 24px;
+      }
+    }
+
+    /* ================= LAYOUT SHELL ================= */
+    .shell {
+      margin-left: var(--rail-w);
+      padding-top: var(--topbar-h);
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 34px;
+    }
+
+    /* ================= HERO ================= */
+    .hero {
+      padding: 76px 0 54px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero-tag {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .hero-tag::before {
+      content: "";
+      width: 30px;
+      height: 1px;
+      background: var(--accent);
+    }
+
+    .hero h1 {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: clamp(38px, 5.4vw, 66px);
+      line-height: 1.04;
+      letter-spacing: -0.01em;
+      max-width: 16ch;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      font-weight: 500;
+      color: var(--ink-soft);
+    }
+
+    .hero p {
+      margin-top: 22px;
+      max-width: 56ch;
+      font-size: 16.5px;
+      color: var(--ink-soft);
+    }
+
+    .hero-meta {
+      margin-top: 40px;
+      display: flex;
+      gap: 0;
+      flex-wrap: wrap;
+      border-top: 1px solid var(--line);
+    }
+
+    .hm {
+      flex: 1 1 25%;
+      min-width: 150px;
+      padding: 18px 20px 0 0;
+    }
+
+    .hm .k {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .hm .v {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    /* ================= CHAPTER (sticky number) ================= */
+    .chapter {
+      border-bottom: 1px solid var(--line);
+    }
+
+    .chapter-grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 36px;
+      align-items: start;
+    }
+
+    .chapter-number-col {
+      position: relative;
+      align-self: stretch;
+    }
+
+    .chapter-sticky {
+      position: sticky;
+      top: calc(var(--topbar-h) + 46px);
+      padding-top: 46px;
+    }
+
+    .chapter-tag {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+
+    .chapter-num {
+      font-family: var(--font-display);
+      font-weight: 500;
+      font-style: italic;
+      font-size: clamp(76px, 9.5vw, 144px);
+      line-height: .82;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+
+    .chapter-title-sm {
+      margin-top: 18px;
+      font-size: 17px;
+      font-weight: 600;
+      max-width: 13ch;
+      line-height: 1.3;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .chapter-content {
+      padding: 46px 0 90px;
+    }
+
+    .chapter-lede {
+      font-size: 16px;
+      color: var(--ink-soft);
+      max-width: 64ch;
+      margin-bottom: 40px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .sub {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 20px;
+      padding: 26px 0;
+      border-top: 1px solid var(--line-soft);
+    }
+
+    .sub:first-of-type {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .sub-idx {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink-faint);
+      padding-top: 4px;
+    }
+
+    .sub h4 {
+      font-size: 18.5px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .sub p {
+      font-size: 14.5px;
+      color: var(--ink-soft);
+      max-width: 68ch;
+    }
+
+    .sub p+p {
+      margin-top: 10px;
+    }
+
+    .sub p b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .mini-list {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .mini-list li {
+      list-style: none;
+      font-size: 14px;
+      color: var(--ink-soft);
+      display: flex;
+      gap: 10px;
+      max-width: 68ch;
+    }
+
+    .mini-list li::before {
+      content: "—";
+      color: var(--ink-faint);
+      flex: none;
+    }
+
+    .mini-list li b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .steps {
+      margin-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .steps li {
+      list-style: none;
+      counter-increment: step;
+      font-size: 14px;
+      color: var(--ink-soft);
+      display: flex;
+      gap: 12px;
+      max-width: 68ch;
+    }
+
+    .steps {
+      counter-reset: step;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink);
+      flex: none;
+      width: 20px;
+      height: 20px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1px;
+    }
+
+    .code-block {
+      margin-top: 14px;
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 14px 18px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: var(--ink-soft);
+      white-space: pre-wrap;
+      max-width: 68ch;
+      line-height: 1.65;
+    }
+
+    .fact-table {
+      margin-top: 12px;
+      border-top: 1px solid var(--line-soft);
+      max-width: 68ch;
+    }
+
+    .fact-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--line-soft);
+      font-size: 13.5px;
+    }
+
+    .fact-row span:first-child {
+      color: var(--ink-soft);
+    }
+
+    .fact-row span:last-child {
+      font-family: var(--font-mono);
+      font-weight: 500;
+      text-align: right;
+    }
+
+    .cmp-wrap {
+      margin-top: 12px;
+      overflow-x: auto;
+    }
+
+    .cmp {
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 100%;
+    }
+
+    .cmp th,
+    .cmp td {
+      padding: 10px 16px 10px 0;
+      text-align: left;
+      border-bottom: 1px solid var(--line-soft);
+      white-space: nowrap;
+    }
+
+    .cmp th {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      font-weight: 500;
+    }
+
+    .cmp td {
+      color: var(--ink-soft);
+    }
+
+    .cmp td:first-child {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .qa {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .qa-item {
+      padding: 16px 0;
+      border-top: 1px solid var(--line-soft);
+      max-width: 68ch;
+    }
+
+    .qa-item:first-child {
+      border-top: none;
+      padding-top: 0;
+    }
+
+    .qa-q {
+      font-size: 14.5px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .qa-q .m {
+      font-family: var(--font-mono);
+      font-style: normal;
+      color: var(--ink-faint);
+      flex: none;
+    }
+
+    .qa-a {
+      font-size: 13.5px;
+      color: var(--ink-soft);
+      padding-left: 26px;
+    }
+
+    .summary {
+      margin-top: 34px;
+      background: var(--bg-raise);
+      border-radius: 4px;
+      border-left: 2px solid var(--accent);
+      padding: 22px 26px;
+      max-width: 68ch;
+    }
+
+    .summary .lbl {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .summary ol {
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .summary li {
+      font-size: 13.5px;
+      color: var(--ink-soft);
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .chip {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--ink);
+      background: var(--white);
+      border: 1px solid var(--line);
+      padding: 5px 11px;
+      border-radius: 999px;
+    }
+
+    /* ================= FOOTER ================= */
+    footer {
+      padding: 50px 34px 70px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    footer .brand {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ink-faint);
+      letter-spacing: .05em;
+    }
+
+    footer .brand b {
+      color: var(--ink);
+    }
+
+    footer .back-top {
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color .15s ease;
+    }
+
+    footer .back-top:hover {
+      color: var(--accent);
+    }
+
+    @media (max-width:760px) {
+      :root {
+        --rail-w: 0px;
+        --topbar-h: 60px;
+      }
+
+      .rail {
+        display: none;
+      }
+
+      .shell {
+        margin-left: 0;
+      }
+
+      .topbar {
+        left: 0;
+        padding: 0 18px;
+      }
+
+      .wrap {
+        padding: 0 18px;
+      }
+
+      .chapter-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .chapter-number-col {
+        align-self: auto;
+      }
+
+      .chapter-sticky {
+        position: static;
+        padding-top: 30px;
+      }
+
+      .chapter-num {
+        font-size: 76px;
+      }
+
+      .sub {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+
+      .sub-idx {
+        padding-top: 0;
+      }
+
+      .hero {
+        padding: 50px 0 40px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="rail">
+    <div class="rail-mark"></div>
+    <div class="rail-mid">VELTRIX VPN — БАЗА ЗНАНИЙ</div>
+    <div class="rail-progress">
+      <span class="pct" id="railPct"><b>00</b>%</span>
+      <div class="track">
+        <div class="fill" id="railFill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="topbar">
+    <div class="topbar-eyebrow"><b>Глава</b> · Обзор материала</div>
+    <nav class="topbar-nav">
+      <a href="#part-1"><span class="ti">01.</span>Основы</a>
+      <a href="#part-2"><span class="ti">02.</span>Технологии</a>
+      <a href="#part-3"><span class="ti">03.</span>Эксплуатация</a>
+      <a href="#part-4"><span class="ti">04.</span>Устройства</a>
+      <a href="#team"><span class="ti">05.</span>Команда</a>
+    </nav>
+    <a class="topbar-cta" href="#ch4">Как устроен VPN<span class="arrow"><svg viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </svg></span></a>
+  </div>
+
+  <div class="shell">
+    <div class="wrap">
+
+      <!-- HERO -->
+      <section class="hero" id="toc">
+        <div class="hero-tag">База знаний · Veltrix VPN</div>
+        <h1>Как устроен VPN — <em>от основ до практики</em></h1>
+        <p>Полный технический разбор: что такое VPN и зачем он нужен, история протоколов, устройство интернета,
+          шифрование, серверы, безопасность, диагностика проблем и настройка на любом устройстве — от телефона до Smart
+          TV.</p>
+        <div class="hero-actions">
+          <a class="hero-btn" href="#team">Открыть команду</a>
+          <a class="hero-btn secondary" href="#ch4">Как устроен VPN</a>
+        </div>
+        <div class="hero-meta">
+          <div class="hm"><span class="k">Глав</span><span class="v">13</span></div>
+          <div class="hm"><span class="k">Частей</span><span class="v">4</span></div>
+          <div class="hm"><span class="k">Уровень</span><span class="v">от основ до эксперта</span></div>
+          <div class="hm"><span class="k">Формат</span><span class="v">теория + FAQ + практика</span></div>
+        </div>
+      </section>
+
+      <!-- TEAM -->
+      <section class="team-lab" id="team">
+        <div class="team-head">
+          <div>
+            <div class="team-kicker">Команда Veltrix VPN</div>
+            <h2>Сотрудники, уровни и живая статистика.</h2>
+            <p>Карточки стали меньше и ближе к примеру: большой цветной верх, круглая фотография/аватар, светящийся ник,
+              рейтинг, номер для звонка, статус, отдел, навыки и история роста. Личные поля вроде возраста и города
+              убраны.</p>
+          </div>
+          <div class="team-update">
+            <strong>Скоро обновление списка сотрудников</strong>
+            <ul>
+              <li>Возраст и город больше не показываются.</li>
+              <li>Вместо них: статус, отдел, специализация и рабочий график.</li>
+              <li>Карточка открывается по клику, рейтинг показывает отзывы.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="leadership" aria-label="Руководство">
+          <div class="leadership-title">Руководство</div>
+          <div class="leadership-grid">
+            <article class="leader-pill">
+              <div class="avatar" style="--c1:#F59E0B;--c2:#F472B6;">М</div>
+              <div>
+                <div class="leader-name"><span class="leader-handle">Маша</span><span>★ 5.0</span></div>
+                <a class="phone-link" href="tel:+404">+404</a>
+                <span class="leader-role">Ⅷ Главный админ компании · #000001</span>
+              </div>
+            </article>
+            <article class="leader-pill">
+              <div class="avatar" style="--c1:#E11D48;--c2:#8B5CF6;">Л</div>
+              <div>
+                <div class="leader-name"><span class="leader-handle">Лера</span><span>★ 5.0</span></div>
+                <a class="phone-link" href="tel:+333">+333</a>
+                <span class="leader-role">Ⅶ Главный эксперт · #000002</span>
+              </div>
+            </article>
+            <article class="leader-pill">
+              <div class="avatar" style="--c1:#22C55E;--c2:#06B6D4;">А</div>
+              <div>
+                <div class="leader-name"><span class="leader-handle">Алиса</span><span>★ 4.9</span></div>
+                <a class="phone-link" href="tel:+202">+202</a>
+                <span class="leader-role">Ⅵ Старший · #000003</span>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="team-stats">
+          <div class="stat-tile"><span>Сотрудников онлайн</span><b>6</b></div>
+          <div class="stat-tile"><span>Обращений сегодня</span><b>418</b></div>
+          <div class="stat-tile"><span>Среднее время ответа</span><b>2:18</b></div>
+          <div class="stat-tile"><span>Средний рейтинг</span><b>4.96</b></div>
+          <div class="stat-tile"><span>Решено всего</span><b>28 740</b></div>
+        </div>
+
+        <div class="team-tools">
+          <input class="team-search" id="teamSearch" type="search" placeholder="Поиск сотрудников">
+          <select class="team-select" id="teamSort" aria-label="Сортировка сотрудников">
+            <option value="rating">По рейтингу</option>
+            <option value="activity">По активности</option>
+            <option value="level">По стажу</option>
+            <option value="solved">По решённым обращениям</option>
+          </select>
+          <button class="theme-toggle" id="themeToggle" type="button">Тёмная тема</button>
+        </div>
+
+        <div class="filter-row" id="departmentFilters" aria-label="Фильтр по отделам">
+          <button class="filter-btn is-active" type="button" data-dept="all">Все отделы</button>
+          <button class="filter-btn" type="button" data-dept="Поддержка VPN">Поддержка VPN</button>
+          <button class="filter-btn" type="button" data-dept="QA">QA</button>
+          <button class="filter-btn" type="button" data-dept="Документация">Документация</button>
+          <button class="filter-btn" type="button" data-dept="Администрация">Администрация</button>
+          <button class="filter-btn" type="button" data-dept="HR">HR</button>
+        </div>
+
+        <div class="team-grid" id="teamGrid">
+          <article class="employee-card" style="--c1:#F59E0B;--c2:#F472B6;--badge:#B7791F;" data-name="Маша"
+            data-dept="Администрация" data-rating="5.0" data-activity="100" data-level="8" data-solved="8942">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">М</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Маша</div>
+                  <div class="employee-role">Главный администратор</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Маша"
+                  data-reviews="Спасибо за помощь!|Ответила за 30 секунд.|Очень вежливый оператор.">5.0</button>
+              </div>
+              <div class="rank-badge">Ⅷ Главный админ компании</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Номер</span><b><a class="phone-link" href="tel:+404">+404</a></b></div>
+                <div class="metric"><span>Статус</span><b class="status-dot">Онлайн</b></div>
+                <div class="metric"><span>Решено</span><b>8 942 обращения</b></div>
+                <div class="metric"><span>Опыт</span><b>1 год 8 месяцев</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Координирует команду, держит качество поддержки и помогает со сложными
+                  случаями оплаты, доступа и безопасности.</p>
+                <div class="badge-row"><span class="mini-pill">Основатель</span><span class="mini-pill">Лучший оператор
+                    месяца</span><span class="mini-pill">Главный администратор</span></div>
+                <div class="activity-bar" style="--w:100%"><span></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#E11D48;--c2:#8B5CF6;--badge:#EA580C;" data-name="Лера"
+            data-dept="QA" data-rating="5.0" data-activity="96" data-level="7" data-solved="4985">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">Л</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Лера</div>
+                  <div class="employee-role">Главный эксперт QA</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Лера"
+                  data-reviews="Проверила всё очень быстро.|Нашла ошибку в настройке.|Объяснила спокойно и понятно.">5.0</button>
+              </div>
+              <div class="rank-badge">Ⅶ Главный эксперт</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Номер</span><b><a class="phone-link" href="tel:+333">+333</a></b></div>
+                <div class="metric"><span>Статус</span><b class="status-dot">Онлайн</b></div>
+                <div class="metric"><span>Решено</span><b>4 985 обращений</b></div>
+                <div class="metric"><span>Ответ</span><b>2 мин 18 сек</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Проверяет качество ответов, тестирует инструкции и помогает команде без ошибок
+                  закрывать сложные обращения.</p>
+                <div class="progress-note"><span>До уровня «Эксперт»</span>
+                  <div class="progress-bar" style="--w:82%"><span></span></div><b>82%</b>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#22C55E;--c2:#06B6D4;--badge:#DB2777;" data-name="Алиса"
+            data-dept="Поддержка VPN" data-rating="4.9" data-activity="88" data-level="6" data-solved="3716">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">А</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Алиса</div>
+                  <div class="employee-role">Старший оператор</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Алиса"
+                  data-reviews="Подключение заработало сразу.|Очень быстрый ответ.|Помогла с iPhone.">4.9</button>
+              </div>
+              <div class="rank-badge">Ⅵ Старший</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Номер</span><b><a class="phone-link" href="tel:+202">+202</a></b></div>
+                <div class="metric"><span>Статус</span><b class="status-dot">Онлайн</b></div>
+                <div class="metric"><span>Специализация</span><b>iPhone, Telegram</b></div>
+                <div class="metric"><span>Рейтинг</span><b>★★★★★ 4.9</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Сильна в мобильных настройках, Telegram и быстрых консультациях для новых
+                  пользователей.</p>
+                <div class="badge-row"><span class="mini-pill">Проверенный сотрудник</span><span class="mini-pill">Более
+                    1000 решённых обращений</span></div>
+                <div class="activity-bar" style="--w:88%"><span></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#14B8A6;--c2:#93C5FD;--badge:#2563EB;" data-name="Мирослав"
+            data-dept="Поддержка VPN" data-rating="4.8" data-activity="82" data-level="3" data-solved="2483">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">М</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Мирослав</div>
+                  <div class="employee-role">Оператор поддержки</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Мирослав"
+                  data-reviews="Помог с Windows.|Настроил WireGuard без лишних слов.|Ответ был понятный.">4.8</button>
+              </div>
+              <div class="rank-badge">Ⅲ Высокий</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Отдел</span><b>Поддержка VPN</b></div>
+                <div class="metric"><span>Статус</span><b class="status-dot">Онлайн</b></div>
+                <div class="metric"><span>Решено</span><b>2 483 обращения</b></div>
+                <div class="metric"><span>График</span><b>Сейчас на смене</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Работает с Windows, macOS, Linux и WireGuard. Последний онлайн: сейчас.</p>
+                <div class="activity-bar" style="--w:82%"><span></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#3B82F6;--c2:#A78BFA;--badge:#7C3AED;" data-name="Никита"
+            data-dept="Документация" data-rating="4.7" data-activity="74" data-level="2" data-solved="1210">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">Н</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Никита</div>
+                  <div class="employee-role">Автор документации</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Никита"
+                  data-reviews="Инструкция стала понятнее.|Помог найти нужный пункт.|Хорошо объяснил про роутер.">4.7</button>
+              </div>
+              <div class="rank-badge">Ⅱ Средний</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Специализация</span><b>Роутеры, WireGuard</b></div>
+                <div class="metric"><span>Статус</span><b>На обучении</b></div>
+                <div class="metric"><span>Решено</span><b>1 210 обращений</b></div>
+                <div class="metric"><span>Языки</span><b>Русский, English</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Обновляет базу знаний и превращает сложные настройки в короткие шаги.</p>
+                <div class="badge-row"><span class="mini-pill">Автор документации</span></div>
+                <div class="activity-bar" style="--w:74%"><span></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#FB7185;--c2:#FBBF24;--badge:#2563EB;" data-name="Алеся"
+            data-dept="HR" data-rating="4.8" data-activity="80" data-level="3" data-solved="1740">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">А</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Алеся</div>
+                  <div class="employee-role">HR и обучение</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Алеся"
+                  data-reviews="Помогла с графиком.|Обучение прошло спокойно.|Быстро направила к нужному человеку.">4.8</button>
+              </div>
+              <div class="rank-badge">Ⅲ Высокий</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Отдел</span><b>HR</b></div>
+                <div class="metric"><span>Статус</span><b>Отошла</b></div>
+                <div class="metric"><span>Активность</span><b>Высокая</b></div>
+                <div class="metric"><span>Будет онлайн</span><b>через 2 часа</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Помогает новым сотрудникам быстрее войти в работу и следит за расписанием смен.</p>
+                <div class="activity-bar" style="--w:80%"><span></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#F97316;--c2:#10B981;--badge:#64748B;" data-name="Илья"
+            data-dept="Поддержка VPN" data-rating="4.5" data-activity="54" data-level="1" data-solved="314">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">И</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Илья</div>
+                  <div class="employee-role">Новый оператор</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Илья"
+                  data-reviews="Старался помочь.|Передал вопрос старшему.|Быстро уточнил детали.">4.5</button>
+              </div>
+              <div class="rank-badge">Ⅰ Начальный</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Специализация</span><b>Android</b></div>
+                <div class="metric"><span>Статус</span><b>На обучении</b></div>
+                <div class="metric"><span>Решено</span><b>314 обращений</b></div>
+                <div class="metric"><span>В компании</span><b>2 месяца</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Новый сотрудник, помогает с базовыми подключениями и учится у старших операторов.</p>
+                <div class="activity-bar" style="--w:54%"><span></span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="employee-card" style="--c1:#8B5CF6;--c2:#EC4899;--badge:#64748B;" data-name="Таисия"
+            data-dept="Модерация" data-rating="4.6" data-activity="60" data-level="1" data-solved="427">
+            <div class="employee-cover"></div>
+            <div class="employee-body">
+              <div class="avatar">Т</div>
+              <div class="employee-main">
+                <div>
+                  <div class="employee-name">Таисия</div>
+                  <div class="employee-role">Модерация</div>
+                </div>
+                <button class="rating-button" type="button" data-person="Таисия"
+                  data-reviews="Аккуратно проверила обращение.|Ответ был вежливый.|Помогла найти нужный раздел.">4.6</button>
+              </div>
+              <div class="rank-badge">Ⅰ Начальный</div>
+              <div class="employee-metrics">
+                <div class="metric"><span>Отдел</span><b>Модерация</b></div>
+                <div class="metric"><span>Статус</span><b>Не беспокоить</b></div>
+                <div class="metric"><span>Решено</span><b>427 обращений</b></div>
+                <div class="metric"><span>Последний онлайн</span><b>12 минут назад</b></div>
+              </div>
+              <div class="employee-extra">
+                <p class="employee-bio">Следит за порядком в обращениях и помогает распределять вопросы по отделам.</p>
+                <div class="activity-bar" style="--w:60%"><span></span></div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="team-panels">
+          <section class="team-panel">
+            <h3>Стаж</h3>
+            <ul class="rank-list">
+              <li><span>Ⅰ Начальный</span><b>Илья, Таисия</b></li>
+              <li><span>Ⅱ Средний</span><b>Никита</b></li>
+              <li><span>Ⅲ Высокий</span><b>Мирослав, Алеся</b></li>
+              <li><span>Ⅳ Эксперт</span><b>следующий уровень</b></li>
+              <li><span>Ⅴ Ведущий</span><b>резерв</b></li>
+              <li><span>Ⅵ Старший</span><b>Алиса</b></li>
+              <li><span>Ⅶ Главный эксперт</span><b>Лера</b></li>
+              <li><span>Ⅷ Главный админ компании</span><b>Маша</b></li>
+            </ul>
+          </section>
+          <section class="team-panel">
+            <h3>Топ-5 месяца</h3>
+            <ul class="rank-list">
+              <li><span>1. Маша</span><b>5.0</b></li>
+              <li><span>2. Лера</span><b>5.0</b></li>
+              <li><span>3. Алиса</span><b>4.9</b></li>
+              <li><span>4. Мирослав</span><b>4.8</b></li>
+              <li><span>5. Алеся</span><b>4.8</b></li>
+            </ul>
+          </section>
+          <section class="team-panel">
+            <h3>Прогресс и репутация</h3>
+            <div class="progress-note">
+              <span>До следующего повышения. До уровня «Эксперт»</span>
+              <div class="progress-bar" style="--w:82%"><span></span></div>
+              <b>82%</b>
+              <span>Репутация: 4 985 очков за помощь пользователям.</span>
+            </div>
+          </section>
+        </div>
+
+        <div class="team-panels">
+          <section class="team-panel">
+            <h3>Новые сотрудники</h3>
+            <div class="tag-row tight"><span class="mini-pill">Илья · Android</span><span class="mini-pill">Таисия ·
+                Модерация</span></div>
+          </section>
+          <section class="team-panel">
+            <h3>Зал славы</h3>
+            <div class="tag-row tight"><span class="mini-pill">Маша · Основатель</span><span class="mini-pill">Лера ·
+                QA</span><span class="mini-pill">Никита · Документация</span></div>
+          </section>
+          <section class="team-panel">
+            <h3>Должности</h3>
+            <div class="tag-row tight"><span class="mini-pill">Новичок</span><span class="mini-pill">Оператор</span><span
+                class="mini-pill">Старший оператор</span><span class="mini-pill">Эксперт</span><span
+                class="mini-pill">Ведущий специалист</span><span class="mini-pill">Главный специалист</span></div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ============ PART I ============ -->
+      <div id="part-1"></div>
+
+      <!-- CH 01 -->
+      <section class="chapter" id="ch1">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть I · Основы</div>
+              <div class="chapter-num">01</div>
+              <div class="chapter-title-sm">Что такое VPN?</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">VPN — виртуальная частная сеть. Разбираем термин по словам, объясняем, что именно
+              провайдер, сайт и хакер видят без VPN и с ним, и где технология применяется на практике.</p>
+
+            <div class="sub"><span class="sub-idx">1.1</span>
+              <div>
+                <h4>Разбор термина</h4>
+                <ul class="mini-list">
+                  <li><b>Виртуальная</b> — сеть создаётся программно, без отдельного физического кабеля между вами и
+                    сервером.</li>
+                  <li><b>Частная</b> — соединение защищено: данные идут по зашифрованному каналу, скрытому от
+                    постороннего просмотра.</li>
+                  <li><b>Сеть</b> — защищённое соединение между вашим устройством и VPN-сервером, через которое проходит
+                    весь интернет-трафик.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">1.2</span>
+              <div>
+                <h4>Для чего нужен VPN</h4>
+                <p>Каждый пакет данных состоит из заголовка (IP отправителя и получателя) и тела — самих данных. Без VPN
+                  оба видны провайдеру, администраторам Wi-Fi, спецслужбам и хакеру при MITM-атаке. VPN меняет эту схему
+                  на сетевом уровне (L3 по модели OSI).</p>
+                <p><b>1. Скрывает действия от провайдера.</b> Провайдер — ваш шлюз в интернет, поэтому видит все
+                  исходящие пакеты. Без VPN он видит IP назначения, DNS-запросы, объём и время передачи данных, а в
+                  случае HTTP — и содержимое. С VPN трафик направляется на IP VPN-сервера: провайдер видит только этот
+                  адрес и зашифрованные пакеты, похожие на случайный шум — куда вы идёте дальше, какие сайты открываете
+                  и что в запросах, ему не видно.</p>
+                <p><b>2. Скрывает реальный IP.</b> Source IP в заголовке пакета позволяет сайту определить город,
+                  привязать сессию и передать адрес в рекламные сети. На VPN-сервере происходит SNAT — подмена адреса
+                  отправителя: сайт видит IP сервера и считает, что вы физически находитесь там. Например, ваш IP из
+                  Москвы (84.23.67.12) через сервер в Лондоне (193.99.144.85) заставит сайт определить вашу локацию как
+                  Великобританию.</p>
+                <p><b>3. Защищает в публичном Wi-Fi.</b> В открытой сети любой клиент подсети может перехватывать пакеты
+                  через ARP-spoofing или прослушивание в promiscuous mode. Если сайт работает по HTTP, перехваченный
+                  пакет читается в открытом виде. VPN шифрует данные симметричным алгоритмом (AES-256, ChaCha20) ещё до
+                  отправки в сеть — хакер видит только зашифрованный блок.</p>
+                <p><b>4. Даёт доступ к заблокированным сайтам.</b> Блокировка работает на уровне маршрутизации или DNS:
+                  провайдер не пропускает пакеты к IP ресурса, либо DNS возвращает неверный адрес. С VPN запрос идёт к
+                  серверу в стране, где сайт не заблокирован; сервер сам обращается к ресурсу, получает ответ, шифрует и
+                  пересылает вам — вся блокировка обходится.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">1.3</span>
+              <div>
+                <h4>Где используется VPN</h4>
+                <div class="fact-table">
+                  <div class="fact-row"><span>Корпорации</span><span>Доступ к внутренней сети (IPsec, IKEv2, OpenVPN)
+                      через корпоративный шлюз</span></div>
+                  <div class="fact-row"><span>Обычные пользователи</span><span>Маскировка IP, обход геоблокировок,
+                      защита от провайдера</span></div>
+                  <div class="fact-row"><span>Игроки</span><span>Снижение пинга за счёт оптимального BGP-маршрута</span>
+                  </div>
+                  <div class="fact-row"><span>Туристы</span><span>Обход региональных ограничений банков и
+                      стриминга</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">1.4</span>
+              <div>
+                <h4>Преимущества и недостатки</h4>
+                <div class="fact-table">
+                  <div class="fact-row"><span>Шифрование трафика</span><span>AES-256-GCM, ChaCha20-Poly1305</span></div>
+                  <div class="fact-row"><span>Скрытие IP</span><span>SNAT на VPN-сервере</span></div>
+                  <div class="fact-row"><span>Обход блокировок</span><span>Туннель через свободные юрисдикции</span>
+                  </div>
+                  <div class="fact-row"><span>Защита от MITM</span><span>Криптографическая аутентификация сервера</span>
+                  </div>
+                  <div class="fact-row"><span>Падение скорости</span><span>Доп. маршрутизация и шифрование каждого
+                      пакета</span></div>
+                  <div class="fact-row"><span>Совместимость</span><span>Банки и стриминги блокируют известные IP
+                      VPN</span></div>
+                  <div class="fact-row"><span>Бесплатные VPN</span><span>Могут собирать логи, встраивать трекеры</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">1.5</span>
+              <div>
+                <h4>FAQ</h4>
+                <div class="qa">
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">i.</span>VPN — это законно?</div>
+                    <div class="qa-a">В большинстве стран — да. В Китае, России, ОАЭ и Турции действуют ограничения; в
+                      некоторых странах VPN-сервисы должны быть зарегистрированы.</div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">ii.</span>Можно ли использовать VPN с банком?</div>
+                    <div class="qa-a">Да, но фрод-мониторинг банка может заблокировать вход при смене IP — это защита от
+                      кражи аккаунта.</div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">iii.</span>VPN защищает от вирусов?</div>
+                    <div class="qa-a">Нет, VPN шифрует трафик, но не сканирует файлы. Нужен отдельный антивирус.</div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">iv.</span>VPN нужно держать включённым всегда?</div>
+                    <div class="qa-a">Технически нет — включайте, когда нужно скрыть трафик или обойти блокировку.
+                      Постоянное использование снижает скорость.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>VPN создаёт зашифрованный туннель на сетевом уровне (L3).</li>
+                <li>Скрывает IP отправителя и шифрует тело пакета.</li>
+                <li>Провайдер видит только IP сервера и зашифрованные данные.</li>
+                <li>VPN не делает невидимым, но делает перехват технически сложным.</li>
+                <li>Бесплатные VPN часто имеют слабое шифрование или собирают логи.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 02 -->
+      <section class="chapter" id="ch2">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть I · Основы</div>
+              <div class="chapter-num">02</div>
+              <div class="chapter-title-sm">История VPN</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">От дорогих выделенных линий 1980-х до WireGuard 2018 года — путь, который прошли
+              протоколы туннелирования, и почему каждый следующий появлялся именно тогда, когда предыдущий переставал
+              справляться.</p>
+
+            <div class="sub"><span class="sub-idx">2.1</span>
+              <div>
+                <h4>Предпосылки (1980-е)</h4>
+                <p>До массового интернета компании соединяли офисы выделенными линиями — физическими кабелями стоимостью
+                  тысячи долларов в месяц, с пропускной способностью до 2 Мбит/с и сложным масштабированием: каждый
+                  новый офис требовал отдельной линии. С появлением интернета понадобилась технология, которая
+                  использует публичную сеть как частную.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">2.2 – 2.6</span>
+              <div>
+                <h4>Пять поколений протоколов</h4>
+                <div class="cmp-wrap">
+                  <table class="cmp">
+                    <tr>
+                      <th>Год</th>
+                      <th>Протокол</th>
+                      <th>Создатель</th>
+                      <th>Статус сегодня</th>
+                    </tr>
+                    <tr>
+                      <td>1996</td>
+                      <td>PPTP</td>
+                      <td>Microsoft</td>
+                      <td>Скомпрометирован, 40-бит MPPE взламывается за минуты</td>
+                    </tr>
+                    <tr>
+                      <td>1999</td>
+                      <td>L2TP + IPsec</td>
+                      <td>Cisco, Microsoft</td>
+                      <td>Используется, но уступает WireGuard/OpenVPN</td>
+                    </tr>
+                    <tr>
+                      <td>2001</td>
+                      <td>OpenVPN</td>
+                      <td>James Yonan</td>
+                      <td>Всё ещё в ходу, маскируется под HTTPS (порт 443)</td>
+                    </tr>
+                    <tr>
+                      <td>2012</td>
+                      <td>IKEv2</td>
+                      <td>Microsoft, Cisco</td>
+                      <td>Стандарт для iOS/macOS, поддерживает MOBIKE-роуминг</td>
+                    </tr>
+                    <tr>
+                      <td>2018</td>
+                      <td>WireGuard</td>
+                      <td>Jason Donenfeld</td>
+                      <td>Золотой стандарт — быстрый, простой, ~4000 строк кода</td>
+                    </tr>
+                  </table>
+                </div>
+                <p>PPTP инкапсулирует PPP-пакеты в IP и шифрует их MPPE 40/128 бит — слабый ключ и уязвимость MS-CHAPv2
+                  делают его небезопасным. L2TP+IPsec безопаснее (AES-256), но двойная инкапсуляция снижает скорость и
+                  усложняет работу с NAT. OpenVPN построен на SSL/TLS и может маскироваться под HTTPS через порт 443, но
+                  требует отдельного клиента и сотни тысяч строк кода. IKEv2 умеет MOBIKE — бесшовное переключение между
+                  Wi-Fi и мобильной сетью. WireGuard построен на Noise Protocol Framework: ChaCha20, Poly1305,
+                  Curve25519, BLAKE2s — компактный код, работа в ядре Linux, конфиг из 5 строк, переподключение за
+                  миллисекунды.</p>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>VPN создавался ради экономии на выделенных линиях.</li>
+                <li>PPTP — первый массовый протокол, сейчас полностью взломан.</li>
+                <li>OpenVPN был стандартом 15 лет благодаря работе через порт 443.</li>
+                <li>IKEv2 — лучший выбор для мобильных устройств.</li>
+                <li>WireGuard — современный стандарт: быстрый, безопасный, простой.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 03 -->
+      <section class="chapter" id="ch3">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть I · Основы</div>
+              <div class="chapter-num">03</div>
+              <div class="chapter-title-sm">Как работает интернет</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">IP-адреса, DNS, пакеты TCP/UDP и маршрутизация — фундамент, без понимания которого
+              сложно объяснить, что именно меняет VPN.</p>
+
+            <div class="sub"><span class="sub-idx">3.1</span>
+              <div>
+                <h4>IP-адрес</h4>
+                <p>32-битное (IPv4) или 128-битное (IPv6) число, уникально идентифицирующее устройство в сети. Пакет
+                  состоит из заголовка (20–60 байт: source/destination IP) и тела (до 1460 байт данных приложения).
+                  Публичный IP уникален глобально и присваивается провайдером; локальный (например, 192.168.x.x)
+                  используется внутри сети, а роутер подменяет его на публичный через NAT (SNAT).</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">3.2</span>
+              <div>
+                <h4>DNS</h4>
+                <p>Распределённая база, сопоставляющая домены с IP-адресами. Браузер → запрос к google.com → проверка
+                  локального кэша → запрос к DNS-резолверу провайдера → рекурсивный запрос до корневого DNS →
+                  возвращается IP. Без VPN провайдер видит запрашиваемые домены; с VPN DNS-запрос идёт через туннель к
+                  DNS VPN-провайдера, и провайдер доменов не видит.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">3.3</span>
+              <div>
+                <h4>TCP и UDP</h4>
+                <div class="fact-table">
+                  <div class="fact-row"><span>TCP</span><span>3-way handshake, гарантия доставки, повтор потерянных
+                      пакетов — веб, почта, файлы</span></div>
+                  <div class="fact-row"><span>UDP</span><span>без соединения, без гарантии доставки — видеозвонки, игры,
+                      DNS, WireGuard</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">3.4 – 3.5</span>
+              <div>
+                <h4>Геолокация и маршрутизация</h4>
+                <p>Сайт получает публичный IP из заголовка пакета и сверяет его с базой GeoIP (например, MaxMind) — так
+                  определяются город, регион, страна и провайдер. С VPN сайт видит IP сервера и локацию сервера, а не
+                  вашу. Каждый пакет проходит цепочку роутеров (hop-ов), каждый решает, куда его отправить, по таблице
+                  маршрутизации (BGP). VPN добавляет промежуточную точку — маршрут становится длиннее, но скрытым.</p>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>IP-адрес — идентификатор устройства, по нему определяют геолокацию.</li>
+                <li>DNS превращает домены в IP; провайдер видит DNS-запросы без VPN.</li>
+                <li>TCP надёжный и медленный, UDP быстрый без гарантии доставки.</li>
+                <li>VPN меняет IP, шифрует трафик и скрывает DNS-запросы.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 04 -->
+      <section class="chapter" id="ch4">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть I · Основы</div>
+              <div class="chapter-num">04</div>
+              <div class="chapter-title-sm">Как работает VPN</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">От нажатия «Подключиться» до инкапсуляции пакетов, SNAT на сервере и выбора между
+              полным и разделённым туннелем.</p>
+
+            <div class="sub"><span class="sub-idx">4.1</span>
+              <div>
+                <h4>Процесс подключения</h4>
+                <div class="steps">
+                  <li>Клиент создаёт виртуальный сетевой интерфейс (tun0, wg0).</li>
+                  <li>Выполняется криптографическое рукопожатие — обмен ключами (IKEv2 или Noise Protocol).</li>
+                  <li>В таблицу маршрутизации добавляется запись 0.0.0.0/0 через VPN-интерфейс — весь трафик идёт на
+                    сервер.</li>
+                  <li>Системный DNS-резолвер переключается на DNS-сервер VPN-провайдера.</li>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">4.2 – 4.3</span>
+              <div>
+                <h4>Инкапсуляция и шифрование</h4>
+                <p>Без VPN пакет выглядит как [IP: ваш → сайт][TCP/UDP][данные]. С VPN — [IP: ваш →
+                  VPN-сервер][UDP][зашифрованное тело: внутренний заголовок ваш → сайт]. Провайдеру виден только внешний
+                  заголовок; внутренний зашифрован. Ключ согласуется асимметричной криптографией (RSA, ECDHE,
+                  Curve25519), а сами данные шифруются симметрично (AES-256-GCM или ChaCha20-Poly1305); каждый пакет
+                  получает уникальный nonce для защиты от replay-атак.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">4.4</span>
+              <div>
+                <h4>SNAT на сервере</h4>
+                <div class="steps">
+                  <li>Сервер расшифровывает полученный пакет.</li>
+                  <li>Смотрит destination IP — адрес нужного сайта.</li>
+                  <li>Формирует новый пакет: source IP = IP сервера, destination IP = IP сайта.</li>
+                  <li>Отправляет пакет сайту от своего имени.</li>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">4.5</span>
+              <div>
+                <h4>Полный и разделённый туннель</h4>
+                <p><b>Full tunnel</b>: 0.0.0.0/0 dev tun0 — весь трафик через VPN. <b>Split tunneling</b>: локальная
+                  сеть идёт напрямую (10.0.0.0/8 dev eth0), а интернет — через VPN (0.0.0.0/1 и 128.0.0.0/1 dev tun0).
+                  Можно настроить исключения: банковское приложение — через VPN, YouTube — напрямую.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">4.6</span>
+              <div>
+                <h4>Что видит каждая сторона</h4>
+                <div class="cmp-wrap">
+                  <table class="cmp">
+                    <tr>
+                      <th>Сторона</th>
+                      <th>Без VPN</th>
+                      <th>С VPN</th>
+                    </tr>
+                    <tr>
+                      <td>Провайдер</td>
+                      <td>IP назначения, DNS, содержимое (HTTP)</td>
+                      <td>IP VPN-сервера, зашифрованные пакеты</td>
+                    </tr>
+                    <tr>
+                      <td>Сайт</td>
+                      <td>Ваш реальный IP</td>
+                      <td>IP VPN-сервера</td>
+                    </tr>
+                    <tr>
+                      <td>Хакер в Wi-Fi</td>
+                      <td>Все пакеты (HTTP читаемо)</td>
+                      <td>Только шифр</td>
+                    </tr>
+                    <tr>
+                      <td>Государство</td>
+                      <td>Факт посещения сайтов</td>
+                      <td>Факт использования VPN</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>VPN создаёт виртуальный интерфейс и меняет таблицу маршрутизации.</li>
+                <li>Пакеты проходят инкапсуляцию и шифрование.</li>
+                <li>Сервер подменяет source IP через SNAT.</li>
+                <li>Полный туннель — весь трафик через VPN; разделённый — только часть.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PART II ============ -->
+      <div id="part-2"></div>
+
+      <!-- CH 05 -->
+      <section class="chapter" id="ch5">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть II · Технологии</div>
+              <div class="chapter-num">05</div>
+              <div class="chapter-title-sm">VPN-протоколы</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">WireGuard, OpenVPN и IKEv2/IPsec бок о бок — что взять для скорости, что для обхода
+              блокировок и что для мобильных устройств.</p>
+
+            <div class="sub"><span class="sub-idx">5.1 – 5.3</span>
+              <div>
+                <h4>Три протокола</h4>
+                <div class="cmp-wrap">
+                  <table class="cmp">
+                    <tr>
+                      <th>Параметр</th>
+                      <th>WireGuard</th>
+                      <th>OpenVPN</th>
+                      <th>IKEv2/IPsec</th>
+                    </tr>
+                    <tr>
+                      <td>Год</td>
+                      <td>2018</td>
+                      <td>2001</td>
+                      <td>2012</td>
+                    </tr>
+                    <tr>
+                      <td>Транспорт</td>
+                      <td>UDP</td>
+                      <td>TCP/UDP</td>
+                      <td>UDP</td>
+                    </tr>
+                    <tr>
+                      <td>Порт</td>
+                      <td>51820</td>
+                      <td>443 / 1194</td>
+                      <td>500, 4500</td>
+                    </tr>
+                    <tr>
+                      <td>Шифрование</td>
+                      <td>ChaCha20-Poly1305</td>
+                      <td>AES-256-CBC, ChaCha20</td>
+                      <td>AES-256</td>
+                    </tr>
+                    <tr>
+                      <td>Обмен ключами</td>
+                      <td>Curve25519</td>
+                      <td>RSA, ECDHE</td>
+                      <td>Diffie-Hellman</td>
+                    </tr>
+                    <tr>
+                      <td>Код</td>
+                      <td>~4000 строк</td>
+                      <td>~100 000 строк</td>
+                      <td>закрытый</td>
+                    </tr>
+                    <tr>
+                      <td>Роуминг</td>
+                      <td>да</td>
+                      <td>только переподключение</td>
+                      <td>да (MOBIKE)</td>
+                    </tr>
+                    <tr>
+                      <td>Маскировка</td>
+                      <td>нет</td>
+                      <td>да (порт 443)</td>
+                      <td>нет</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">5.4</span>
+              <div>
+                <h4>Сравнение по задачам</h4>
+                <div class="cmp-wrap">
+                  <table class="cmp">
+                    <tr>
+                      <th>Параметр</th>
+                      <th>WireGuard</th>
+                      <th>OpenVPN</th>
+                      <th>IKEv2</th>
+                    </tr>
+                    <tr>
+                      <td>Скорость</td>
+                      <td>10/10</td>
+                      <td>6/10</td>
+                      <td>7/10</td>
+                    </tr>
+                    <tr>
+                      <td>Безопасность</td>
+                      <td>10/10</td>
+                      <td>9/10</td>
+                      <td>8/10</td>
+                    </tr>
+                    <tr>
+                      <td>Обход блокировок</td>
+                      <td>5/10</td>
+                      <td>9/10</td>
+                      <td>4/10</td>
+                    </tr>
+                    <tr>
+                      <td>Мобильность</td>
+                      <td>9/10</td>
+                      <td>5/10</td>
+                      <td>10/10</td>
+                    </tr>
+                    <tr>
+                      <td>Простота настройки</td>
+                      <td>10/10</td>
+                      <td>3/10</td>
+                      <td>6/10</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">5.5</span>
+              <div>
+                <h4>FAQ</h4>
+                <div class="qa">
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">i.</span>Какой протокол выбрать?</div>
+                    <div class="qa-a">Скорость важнее — WireGuard. Нужна маскировка под HTTPS — OpenVPN. На iPhone ради
+                      батареи — IKEv2.</div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">ii.</span>Почему WireGuard быстрее?</div>
+                    <div class="qa-a">Меньше кода, меньше накладных расходов, работа на уровне ядра, UDP без
+                      TCP-подтверждений.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>WireGuard — самый быстрый и безопасный, но не умеет маскироваться.</li>
+                <li>OpenVPN медленнее, но лучше обходит блокировки.</li>
+                <li>IKEv2 — лучший для мобильных устройств.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 06 -->
+      <section class="chapter" id="ch6">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть II · Технологии</div>
+              <div class="chapter-num">06</div>
+              <div class="chapter-title-sm">Шифрование в VPN</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Симметричное и асимметричное шифрование, обмен ключами по Noise Protocol и почему
+              AES-256 сегодня практически невозможно взломать перебором.</p>
+
+            <div class="sub"><span class="sub-idx">6.1</span>
+              <div>
+                <h4>Что такое шифрование</h4>
+                <p>Преобразование данных из читаемого вида в нечитаемый с помощью криптографического ключа: C = E(P, K).
+                  VPN-шифрование должно обеспечивать конфиденциальность (без ключа не прочитать), целостность (данные не
+                  изменены в пути) и аутентичность (сервер настоящий).</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">6.2 – 6.3</span>
+              <div>
+                <h4>Симметричное и асимметричное</h4>
+                <p><b>Симметричное</b> — один ключ на шифрование и расшифровку. AES-256-GCM — 256-бит ключ, режим GCM
+                  даёт шифрование и аутентификацию за один проход, ускоряется AES-NI. ChaCha20-Poly1305 (используется в
+                  WireGuard) — быстрее AES на устройствах без аппаратного ускорения, Poly1305 проверяет целостность.</p>
+                <p><b>Асимметричное</b> — пара ключей (публичный/приватный), используется только для согласования
+                  сессионного ключа, а не для шифрования всех данных. RSA — 2048–4096 бит, основан на сложности
+                  факторизации. Curve25519 (ECDH, в WireGuard) — 256 бит на эллиптических кривых, быстрее RSA при том же
+                  уровне безопасности.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">6.4</span>
+              <div>
+                <h4>Обмен ключами в WireGuard (Noise Protocol)</h4>
+                <div class="steps">
+                  <li>Клиент генерирует временную пару ключей.</li>
+                  <li>Отправляет публичный ключ серверу.</li>
+                  <li>Сервер вычисляет общий секрет: ECDH(сервер_приватный, клиент_публичный).</li>
+                  <li>Клиент вычисляет тот же секрет своей парой ключей.</li>
+                  <li>Из общего секрета выводятся сессионные ключи для ChaCha20 — их не знает никто, включая провайдера.
+                  </li>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">6.6</span>
+              <div>
+                <h4>FAQ по шифрованию</h4>
+                <div class="qa">
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">i.</span>Могут ли спецслужбы расшифровать трафик?</div>
+                    <div class="qa-a">Практически AES-256 и ChaCha20 сегодня криптостойки — перебор занял бы дольше, чем
+                      существует Вселенная. Но возможны другие методы: взлом устройства, доступ к ключам, бэкдоры в ПО.
+                    </div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">ii.</span>Что такое Perfect Forward Secrecy?</div>
+                    <div class="qa-a">Свойство, при котором компрометация долговременного ключа сервера не раскрывает
+                      прошлые сессии — за счёт эфимерных ключей на каждую сессию. Поддерживается WireGuard и современным
+                      OpenVPN.</div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">iii.</span>Почему ChaCha20 вместо AES-256?</div>
+                    <div class="qa-a">ChaCha20 быстрее на устройствах без аппаратного ускорения (мобильные, старые CPU).
+                      На серверах с AES-NI оба алгоритма быстры и криптографически эквивалентны.</div>
+                  </div>
+                  <div class="qa-item">
+                    <div class="qa-q"><span class="m">iv.</span>Что такое атака с повторным nonce?</div>
+                    <div class="qa-a">Повтор перехваченного зашифрованного пакета злоумышленником. Современные алгоритмы
+                      (GCM, ChaCha20-Poly1305) используют счётчики и отклоняют пакеты с повторяющимся nonce.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>Симметричное шифрование (AES-256, ChaCha20) шифрует основные данные — быстро и надёжно.</li>
+                <li>Асимметричное (RSA, Curve25519) используется только для обмена ключами.</li>
+                <li>WireGuard использует Noise Protocol с идеальной прямой секретностью.</li>
+                <li>Безопасность зависит от длины ключа, протокола и правильной реализации.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 07 -->
+      <section class="chapter" id="ch7">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть II · Технологии</div>
+              <div class="chapter-num">07</div>
+              <div class="chapter-title-sm">Серверы</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Что физически происходит внутри VPN-сервера, какие типы серверов существуют и почему
+              RAM-серверы считаются более приватными.</p>
+
+            <div class="sub"><span class="sub-idx">7.1</span>
+              <div>
+                <h4>Что делает сервер</h4>
+                <div class="steps">
+                  <li>Слушает порт и принимает входящие подключения (например, UDP 51820 для WireGuard).</li>
+                  <li>Аутентифицирует клиента по ключам, сертификатам или логину/паролю.</li>
+                  <li>Расшифровывает входящие пакеты сессионным ключом.</li>
+                  <li>Определяет маршрут пакета — в интернет или локальную сеть.</li>
+                  <li>Подменяет source IP на свой публичный (SNAT) перед отправкой.</li>
+                  <li>Получает ответ, подменяет destination IP на клиентский, шифрует и отправляет обратно.</li>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">7.3</span>
+              <div>
+                <h4>Типы серверов</h4>
+                <div class="fact-table">
+                  <div class="fact-row"><span>Стандартный</span><span>Баланс скорости и нагрузки для общего
+                      сёрфинга</span></div>
+                  <div class="fact-row"><span>P2P</span><span>Порт-форвардинг и высокие лимиты трафика для
+                      торрентов</span></div>
+                  <div class="fact-row"><span>Стриминговый</span><span>IP, не заблокированные Netflix / BBC iPlayer и
+                      т.п.</span></div>
+                  <div class="fact-row"><span>Double VPN</span><span>Трафик проходит через два сервера
+                      последовательно</span></div>
+                  <div class="fact-row"><span>Onion Over VPN</span><span>Трафик направляется в сеть Tor через
+                      VPN-сервер</span></div>
+                  <div class="fact-row"><span>Obfuscated</span><span>Маскировка трафика под HTTPS/SSH для обхода
+                      DPI</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">7.4 – 7.5</span>
+              <div>
+                <h4>Как выбирать сервер и почему скорость отличается</h4>
+                <p>Ключевые критерии: географическое расстояние (пинг), загрузка сервера, используемый протокол,
+                  пропускная способность канала и юрисдикция страны. Для видео — ближайший сервер или сервер страны, где
+                  доступен контент; для игр — минимальный пинг; для торрентов — сервер с P2P и порт-форвардингом; для
+                  обхода блокировок — сервер в стране без цензуры.</p>
+                <p>Скорость падает из-за расстояния (больше hop-ов — выше задержка), загрузки сервера (канал делится
+                  между всеми пользователями), качества BGP-маршрута у конкретного провайдера, устаревшего оборудования
+                  сервера и выбранного протокола — WireGuard быстрее OpenVPN за счёт меньших накладных расходов.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">7.6</span>
+              <div>
+                <h4>RAM-серверы</h4>
+                <p>Работают полностью в оперативной памяти без физических дисков: ОС и все данные загружаются в RAM при
+                  запуске, логи хранятся только там же, а при перезагрузке стираются безвозвратно. Это делает извлечение
+                  логов физически невозможным даже при конфискации оборудования.</p>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>VPN-сервер принимает трафик, расшифровывает и перенаправляет в интернет, подменяя IP.</li>
+                <li>Серверы физически стоят в дата-центрах с мощным оборудованием.</li>
+                <li>Выбор сервера влияет на скорость, пинг и доступ к контенту.</li>
+                <li>RAM-серверы не хранят логи на диске — выше приватность.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 08 -->
+      <section class="chapter" id="ch8">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть II · Технологии</div>
+              <div class="chapter-num">08</div>
+              <div class="chapter-title-sm">Безопасность</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Kill Switch, политика No Logs и защита от утечек DNS, IPv6 и WebRTC — что
+              действительно закрывает дыры, которые VPN сам по себе не закрывает.</p>
+
+            <div class="sub"><span class="sub-idx">8.1</span>
+              <div>
+                <h4>Основные угрозы</h4>
+                <div class="fact-table">
+                  <div class="fact-row"><span>Перехват трафика (MITM)</span><span>Закрывается шифрованием пакетов</span>
+                  </div>
+                  <div class="fact-row"><span>Отслеживание провайдером</span><span>Провайдер видит только IP сервера и
+                      шифр</span></div>
+                  <div class="fact-row"><span>DNS-подмена</span><span>Запросы идут через туннель к надёжному DNS</span>
+                  </div>
+                  <div class="fact-row"><span>Утечка IP</span><span>Закрывается Kill Switch</span></div>
+                  <div class="fact-row"><span>Утечка WebRTC</span><span>Отключение WebRTC в браузере</span></div>
+                  <div class="fact-row"><span>Утечка IPv6</span><span>Блокировка IPv6 на устройстве</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">8.2</span>
+              <div>
+                <h4>Kill Switch</h4>
+                <p>Полностью блокирует интернет, если VPN-соединение обрывается. Клиент создаёт системный сетевой фильтр
+                  (Windows Filtering Platform, iptables): пакеты через VPN-интерфейс разрешены, все остальные —
+                  блокируются. Если VPN падает, фильтр блокирует весь трафик до восстановления соединения. Бывает
+                  принудительный (блокирует даже системные службы) и мягкий (оставляет DNS и системные службы).</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">8.3</span>
+              <div>
+                <h4>No Logs</h4>
+                <p>Zero-log политика означает, что провайдер не хранит время подключения, IP клиента, посещённые сайты и
+                  использованный протокол — фиксируется разве что общий объём переданных данных. Если логов нет,
+                  провайдер не сможет их предоставить даже по требованию суда — особенно если серверы находятся в
+                  юрисдикциях со строгими законами о приватности (Швейцария, Панама). Независимые аудиторы (например,
+                  крупные аудиторские фирмы) могут проверять политику и публиковать отчёты.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">8.4</span>
+              <div>
+                <h4>Защита от утечек</h4>
+                <ul class="mini-list">
+                  <li><b>DNS Leak</b> — клиент принудительно направляет все DNS-запросы через VPN-интерфейс; при
+                    отключении VPN запросы блокируются.</li>
+                  <li><b>IPv6 Leak</b> — если VPN поддерживает только IPv4, IPv6-трафик может пойти напрямую; решение —
+                    отключить IPv6 на уровне системы.</li>
+                  <li><b>WebRTC Leak</b> — браузерный API для видеозвонков может раскрыть локальный IP даже через VPN;
+                    закрывается расширением или настройками браузера.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">8.5</span>
+              <div>
+                <h4>Дополнительные функции</h4>
+                <ul class="mini-list">
+                  <li><b>Double VPN</b> — трафик идёт через два сервера подряд: если один скомпрометирован, второй
+                    остаётся защитой.</li>
+                  <li><b>Onion Over VPN</b> — после VPN-сервера трафик уходит в Tor: три уровня шифрования для
+                    максимальной анонимности.</li>
+                  <li><b>Ad-blocker / Malware-защита</b> — на уровне DNS сервер блокирует известные рекламные и
+                    вредоносные домены.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>VPN защищает от перехвата, отслеживания провайдером и DNS-спуфинга.</li>
+                <li>Kill Switch блокирует интернет при разрыве VPN.</li>
+                <li>No-log политика — провайдер не хранит данные о вас.</li>
+                <li>Утечки DNS, IPv6 и WebRTC нужно блокировать отдельно.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PART III ============ -->
+      <div id="part-3"></div>
+
+      <!-- CH 09 -->
+      <section class="chapter" id="ch9">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть III · Эксплуатация</div>
+              <div class="chapter-num">09</div>
+              <div class="chapter-title-sm">Решение проблем</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Пошаговая диагностика: не подключается, медленно, высокий пинг, сайты не
+              открываются, YouTube не работает — с конкретными причинами и решениями для каждой ситуации.</p>
+
+            <div class="sub"><span class="sub-idx">9.1</span>
+              <div>
+                <h4>VPN не подключается</h4>
+                <div class="fact-table">
+                  <div class="fact-row"><span>Блокировка портов</span><span>Переключитесь на OpenVPN TCP 443 или смените
+                      порт WireGuard на 53/123</span></div>
+                  <div class="fact-row"><span>Брандмауэр/антивирус</span><span>Добавьте VPN-клиент в исключения</span>
+                  </div>
+                  <div class="fact-row"><span>Ошибка 691 — учётные данные</span><span>Проверьте логин/пароль или пару
+                      ключей WireGuard</span></div>
+                  <div class="fact-row"><span>Ошибка 789 — протокол</span><span>Выберите протокол, который требует
+                      сервер (IPsec/L2TP)</span></div>
+                  <div class="fact-row"><span>Ошибка 868 — DNS</span><span>Пропишите DNS вручную (1.1.1.1,
+                      8.8.8.8)</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">9.2 – 9.3</span>
+              <div>
+                <h4>Медленная скорость и высокий пинг</h4>
+                <ul class="mini-list">
+                  <li><b>Удалённый или перегруженный сервер</b> — выберите ближайший или менее загруженный.</li>
+                  <li><b>Неправильный MTU</b> — уменьшите до 1400 или 1350.</li>
+                  <li><b>Старый протокол</b> — переключитесь на WireGuard или OpenVPN UDP.</li>
+                  <li><b>Ограничение провайдера</b> — используйте обфускацию (OpenVPN через 443).</li>
+                  <li><b>Высокий пинг</b> — проводное подключение, сервер с наименьшей задержкой, закрыть фоновые
+                    приложения.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">9.4 – 9.6</span>
+              <div>
+                <h4>Сайты, YouTube и ошибки авторизации</h4>
+                <p><b>Сайты не открываются:</b> неправильный DNS (пропишите 1.1.1.1 или 8.8.8.8), утечка IPv6 (отключите
+                  IPv6), блокировка IP сервера сайтом (смените сервер), большой MTU (уменьшите до 1400).</p>
+                <p><b>YouTube:</b> гео-блокировка контента — выбрать сервер нужной страны; недостаточная скорость для 4K
+                  (от 25 Мбит/с) — ближайший сервер с WireGuard; удалённость CDN-узла — сервер в крупном городе
+                  (Франкфурт, Лондон, Нью-Йорк).</p>
+                <p><b>Ошибки авторизации:</b> 619 — порт заблокирован, использовать OpenVPN TCP 443; 807 — проблема
+                  сети, перезагрузить роутер; 800 — сервер не отвечает, проверить статус или сменить сервер.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">9.7</span>
+              <div>
+                <h4>Общий алгоритм диагностики</h4>
+                <div class="steps">
+                  <li>Проверить интернет без VPN — если не работает, проблема у провайдера.</li>
+                  <li>Проверить логи VPN-клиента на строки ERROR/WARNING.</li>
+                  <li>Проверить утечки на ipleak.net.</li>
+                  <li>Сменить протокол: WireGuard ↔ OpenVPN UDP/TCP ↔ IKEv2.</li>
+                  <li>Сменить сервер в той же или соседней стране.</li>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>Не подключается — проверьте порты, брандмауэр, учётные данные.</li>
+                <li>Медленно — ближайший сервер, WireGuard, проверка MTU.</li>
+                <li>Высокий пинг — сервер с наименьшей задержкой, проводное подключение.</li>
+                <li>Логи и ipleak.net — главный инструмент диагностики.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 10 -->
+      <section class="chapter" id="ch10">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть III · Эксплуатация</div>
+              <div class="chapter-num">10</div>
+              <div class="chapter-title-sm">Частые вопросы</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Двадцать вопросов, которые задают чаще всего — от легальности VPN в разных странах
+              до влияния на батарею телефона.</p>
+
+            <div class="qa">
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">1.</span>VPN замедляет интернет?</div>
+                <div class="qa-a">Да, на 5–30% в зависимости от протокола (WireGuard 5–10%, OpenVPN 15–25%), расстояния
+                  до сервера и его загрузки.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">2.</span>Можно ли обходить блокировки?</div>
+                <div class="qa-a">Да, если блокировка на уровне DNS или IP. При активном DPI нужна обфускация трафика.
+                </div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">3.</span>Легален ли VPN в моей стране?</div>
+                <div class="qa-a">Разрешён в США, ЕС, Великобритании, Канаде, Австралии; ограничен в России, Турции,
+                  ОАЭ; запрещён (кроме сертифицированных) в Китае, КНДР, Иране.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">4.</span>Видит ли провайдер, что я на VPN?</div>
+                <div class="qa-a">Да — IP сервера и объём трафика видны, содержимое — нет.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">5.</span>Какой протокол самый безопасный?</div>
+                <div class="qa-a">WireGuard — современная криптография и компактный код снижают риск ошибок.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">6.</span>Выключать VPN для банка?</div>
+                <div class="qa-a">Не обязательно, если банк не блокирует VPN; если просит отключить — отключите.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">7.</span>Что такое двойной VPN?</div>
+                <div class="qa-a">Цепочка из двух серверов — выше анонимность, но вдвое ниже скорость.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">8.</span>Сколько устройств можно подключить?</div>
+                <div class="qa-a">Обычно 5–10 одновременно; для большего числа — VPN на роутере.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">9.</span>Как проверить, что VPN работает?</div>
+                <div class="qa-a">Зайдите на ipleak.net или whatismyip.com — IP должен принадлежать VPN-провайдеру.
+                </div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">10.</span>Отслеживает ли Google через VPN?</div>
+                <div class="qa-a">Да, если вы вошли в аккаунт — Google видит куки и отпечаток браузера независимо от IP.
+                </div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">11.</span>VPN или Tor?</div>
+                <div class="qa-a">VPN — скорость для повседневных задач; Tor — максимальная анонимность, но медленно (до
+                  1 Мбит/с).</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">12.</span>Какой VPN для Китая?</div>
+                <div class="qa-a">Нужна обфускация и поддержка Shadowsocks/V2Ray или OpenVPN через 443 — обычный VPN
+                  обычно не работает.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">13.</span>Что такое порт-форвардинг?</div>
+                <div class="qa-a">Перенаправление входящих соединений на ваше устройство — нужен для торрентов и
+                  хостинга игровых серверов.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">14.</span>Влияет ли VPN на батарею?</div>
+                <div class="qa-a">Да, на 10–20% из-за постоянного шифрования; WireGuard экономичнее OpenVPN.</div>
+              </div>
+              <div class="qa-item">
+                <div class="qa-q"><span class="m">15.</span>Что такое обфускация?</div>
+                <div class="qa-a">Маскировка VPN-трафика под HTTPS/SSH для обхода глубокой инспекции пакетов (DPI).
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>Легальность и допустимая нагрузка на скорость сильно зависят от страны и протокола.</li>
+                <li>VPN не даёт полной анонимности — аккаунты и куки остаются видимыми сервисам, в которые вы вошли.
+                </li>
+                <li>Для обхода жёсткой цензуры нужна именно обфускация, а не любой VPN.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 11 -->
+      <section class="chapter" id="ch11">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть III · Эксплуатация</div>
+              <div class="chapter-num">11</div>
+              <div class="chapter-title-sm">Советы</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Как выбрать быстрый сервер, ускорить соединение, защитить аккаунт поверх VPN и
+              безопасно пользоваться публичным Wi-Fi.</p>
+
+            <div class="sub"><span class="sub-idx">11.1 – 11.2</span>
+              <div>
+                <h4>Выбор сервера и ускорение</h4>
+                <div class="steps">
+                  <li>Запустите встроенный тест скорости в приложении.</li>
+                  <li>Выберите 3 сервера с наименьшим пингом.</li>
+                  <li>Измерьте реальную скорость через Speedtest на каждом.</li>
+                  <li>Оставьте сервер с максимальной скоростью при минимальном пинге.</li>
+                </div>
+                <ul class="mini-list" style="margin-top:16px;">
+                  <li>Переключитесь на WireGuard — в 2–3 раза быстрее OpenVPN.</li>
+                  <li>Выбирайте сервер с загрузкой менее 50%.</li>
+                  <li>Используйте Ethernet вместо Wi-Fi.</li>
+                  <li>Уменьшите MTU до 1400.</li>
+                  <li>Смените DNS на 1.1.1.1 или 8.8.8.8.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">11.3 – 11.4</span>
+              <div>
+                <h4>Защита аккаунта и публичный Wi-Fi</h4>
+                <p>VPN защищает данные в пути, но не пароль и не аккаунт: используйте менеджер паролей, включайте 2FA
+                  везде, где можно, не сохраняйте пароли в браузере. В публичном Wi-Fi: включайте VPN до подключения к
+                  сети, держите Kill Switch включённым, отключите автоподключение к открытым сетям, для банка
+                  используйте мобильный интернет, проверяйте HTTPS в адресной строке.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">11.7</span>
+              <div>
+                <h4>Если VPN заблокирован в стране</h4>
+                <ul class="mini-list">
+                  <li>Протокол с обфускацией — OpenVPN через порт 443 под HTTPS.</li>
+                  <li>Shadowsocks или V2Ray — прокси-протоколы, которые сложнее обнаружить.</li>
+                  <li>Собственный VPS с WireGuard/OpenVPN — IP не в чёрных списках.</li>
+                  <li>SSH-туннель через порт 22.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">11.8</span>
+              <div>
+                <h4>Технические советы для WireGuard</h4>
+                <div class="code-block">[Interface]
+                  DNS = 1.1.1.1
+
+                  [Peer]
+                  PersistentKeepalive = 25</div>
+                <p style="margin-top:10px;">Меняйте порт с 51820 на 53, 123 или 443, если он блокируется провайдером.
+                </p>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>Выбирайте сервер по трём параметрам: пинг, загрузка, география.</li>
+                <li>Для скорости — WireGuard, ближайший сервер, меньший MTU.</li>
+                <li>Защита аккаунта — отдельная задача: 2FA и менеджер паролей.</li>
+                <li>В публичном Wi-Fi включайте VPN до подключения и держите Kill Switch.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PART IV ============ -->
+      <div id="part-4"></div>
+
+      <!-- CH 12 -->
+      <section class="chapter" id="ch12">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть IV · Устройства</div>
+              <div class="chapter-num">12</div>
+              <div class="chapter-title-sm">Настройка на устройствах</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Приложение провайдера или ручная настройка через системные параметры — разбор для
+              Windows, macOS, iOS, Android, Linux и роутера ASUS.</p>
+
+            <div class="sub"><span class="sub-idx">12.1</span>
+              <div>
+                <h4>Два способа настройки</h4>
+                <p><b>Приложение провайдера</b> — самый простой и безопасный способ: скачать из официального магазина,
+                  войти в аккаунт, нажать «Подключиться». <b>Ручная настройка</b> — через системные параметры, если нет
+                  приложения или нужен корпоративный VPN. Потребуются: тип протокола, адрес сервера, логин, пароль или
+                  PSK, а для OpenVPN — файл .ovpn.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">12.2</span>
+              <div>
+                <h4>Windows 10/11</h4>
+                <p>Через приложение — стандартная установка и вход. Вручную (IKEv2/L2TP): Параметры → Сеть и Интернет →
+                  VPN → Добавить VPN-подключение, указать сервер, тип VPN и учётные данные. Через OpenVPN: установить
+                  OpenVPN GUI, положить файл .ovpn в папку конфигурации, подключиться через иконку в трее.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">12.3</span>
+              <div>
+                <h4>macOS</h4>
+                <p>Приложение провайдера или Системные настройки → Сеть → + → интерфейс VPN (IKEv2/L2TP/Cisco IPSec) с
+                  адресом сервера и учётными данными. Для OpenVPN — клиент Tunnelblick: файл .ovpn переименовывается в
+                  .tblk и перетаскивается на иконку приложения.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">12.4 – 12.5</span>
+              <div>
+                <h4>iOS и Android</h4>
+                <p><b>iOS:</b> приложение из App Store, либо Настройки → VPN и управление устройством → Добавить
+                  конфигурацию VPN (IKEv2/L2TP). Для OpenVPN нужен OpenVPN Connect. <b>Android:</b> приложение из Google
+                  Play, либо Настройки → Сеть и Интернет → VPN → добавить профиль (IKEv2/L2TP на Android 10+). WireGuard
+                  — отдельное официальное приложение с импортом .conf-файла.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">12.6</span>
+              <div>
+                <h4>Linux</h4>
+                <div class="code-block">sudo apt install wireguard -y
+                  wg genkey | sudo tee /etc/wireguard/privatekey | wg pubkey | sudo tee /etc/wireguard/publickey
+
+                  # /etc/wireguard/wg0.conf
+                  [Interface]
+                  PrivateKey = ваш_приватный_ключ
+                  Address = 10.0.0.2/24
+                  DNS = 1.1.1.1
+
+                  [Peer]
+                  PublicKey = публичный_ключ_сервера
+                  Endpoint = vpn.example.com:51820
+                  AllowedIPs = 0.0.0.0/0
+                  PersistentKeepalive = 25
+
+                  sudo wg-quick up wg0
+                  sudo systemctl enable wg-quick@wg0</div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">12.7</span>
+              <div>
+                <h4>Роутер ASUS</h4>
+                <p>VPN → Клиент VPN → Добавить профиль → OpenVPN → загрузить файл .ovpn и учётные данные → Активировать.
+                  Для собственного сервера: VPN → VPN-сервер → включить IPsec, задать Pre-shared Key, добавить учётные
+                  записи клиентов. Максимум одновременных IPsec-подключений на роутерах ASUS — 8.</p>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>Windows и macOS имеют встроенную поддержку IKEv2 и L2TP/IPsec.</li>
+                <li>iOS и Android поддерживают эти протоколы нативно; для OpenVPN нужны сторонние приложения.</li>
+                <li>Linux — лучший выбор для WireGuard через командную строку.</li>
+                <li>Настройка на роутере защищает все устройства в сети сразу.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CH 13 -->
+      <section class="chapter" id="ch13" style="border-bottom:none;">
+        <div class="chapter-grid">
+          <div class="chapter-number-col">
+            <div class="chapter-sticky">
+              <div class="chapter-tag">Часть IV · Устройства</div>
+              <div class="chapter-num">13</div>
+              <div class="chapter-title-sm">VPN на Smart TV</div>
+            </div>
+          </div>
+          <div class="chapter-content">
+            <p class="chapter-lede">Android TV и Apple TV поддерживают приложения напрямую, а Samsung Tizen и LG webOS —
+              нет. Разбираем все обходные пути.</p>
+
+            <div class="sub"><span class="sub-idx">13.1 – 13.2</span>
+              <div>
+                <h4>Особенности Smart TV</h4>
+                <p>Android TV / Google TV — полноценный Android с поддержкой VPN-приложений. Apple TV поддерживает
+                  VPN-приложения начиная с tvOS 17. Samsung Tizen и LG webOS — приложений не поддерживают в принципе.
+                  Часто вход выполняется через QR-код: код на экране телевизора сканируется телефоном для авторизации.
+                </p>
+                <div class="tag-row">
+                  <span class="chip">VPN-приложение — Android TV, Apple TV 17+</span>
+                  <span class="chip">VPN на роутере — любой телевизор</span>
+                  <span class="chip">Smart DNS — обход геоблоков без шифрования</span>
+                  <span class="chip">Внешнее устройство — Fire Stick, Chromecast</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">13.3 – 13.4</span>
+              <div>
+                <h4>Android TV и Apple TV</h4>
+                <p><b>Android TV:</b> Google Play Store → найти приложение провайдера → установить → войти (в т.ч. по
+                  QR) → выбрать сервер. <b>Apple TV (tvOS 17+):</b> App Store → установить приложение → на экране
+                  появится код → ввести его на сайте провайдера с телефона → авторизация произойдёт автоматически.</p>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">13.5</span>
+              <div>
+                <h4>Samsung Tizen и LG webOS — обходные пути</h4>
+                <ul class="mini-list">
+                  <li><b>VPN на роутере</b> — самый надёжный способ: защищает все устройства в доме, включая телевизор.
+                  </li>
+                  <li><b>Smart DNS</b> — не шифрует трафик, но обходит геоблокировки: DNS-адреса провайдера
+                    прописываются в сетевых настройках телевизора.</li>
+                  <li><b>Точка доступа через ПК</b> — включить общий доступ к VPN-соединению компьютера и подключить
+                    телевизор к этой сети.</li>
+                  <li><b>Внешнее устройство</b> — Fire TV Stick, Chromecast или Android TV-приставка с установленным
+                    VPN-приложением.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="sub"><span class="sub-idx">13.7</span>
+              <div>
+                <h4>Сравнение способов</h4>
+                <div class="cmp-wrap">
+                  <table class="cmp">
+                    <tr>
+                      <th>Способ</th>
+                      <th>Шифрование</th>
+                      <th>Сложность</th>
+                      <th>Защищает всю сеть</th>
+                    </tr>
+                    <tr>
+                      <td>VPN-приложение</td>
+                      <td>да</td>
+                      <td>простая</td>
+                      <td>нет</td>
+                    </tr>
+                    <tr>
+                      <td>VPN на роутере</td>
+                      <td>да</td>
+                      <td>сложная</td>
+                      <td>да</td>
+                    </tr>
+                    <tr>
+                      <td>Smart DNS</td>
+                      <td>нет</td>
+                      <td>простая</td>
+                      <td>нет</td>
+                    </tr>
+                    <tr>
+                      <td>Внешнее устройство</td>
+                      <td>да</td>
+                      <td>простая</td>
+                      <td>нет</td>
+                    </tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="lbl">Кратко</div>
+              <ol>
+                <li>Android TV и Apple TV (tvOS 17+) поддерживают VPN-приложения напрямую.</li>
+                <li>Tizen и webOS требуют роутер, Smart DNS или внешнее устройство.</li>
+                <li>Роутер — единственный способ защитить сразу все устройства в доме.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <footer>
+      <div class="brand"><b>Veltrix VPN</b> · база знаний</div>
+      <a class="back-top" href="#toc">Наверх ↑</a>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      var grid = document.getElementById('teamGrid');
+      if (!grid) return;
+
+      var search = document.getElementById('teamSearch');
+      var sort = document.getElementById('teamSort');
+      var filters = document.getElementById('departmentFilters');
+      var themeToggle = document.getElementById('themeToggle');
+      var cards = Array.prototype.slice.call(grid.querySelectorAll('.employee-card'));
+      var activeDept = 'all';
+
+      function applyTeamView() {
+        var q = (search && search.value ? search.value : '').trim().toLowerCase();
+        var sorted = cards.slice().sort(function (a, b) {
+          var key = sort ? sort.value : 'rating';
+          return Number(b.dataset[key] || 0) - Number(a.dataset[key] || 0);
+        });
+
+        sorted.forEach(function (card) {
+          var matchesDept = activeDept === 'all' || card.dataset.dept === activeDept;
+          var matchesSearch = !q || (card.dataset.name || '').toLowerCase().indexOf(q) !== -1 ||
+            (card.dataset.dept || '').toLowerCase().indexOf(q) !== -1 || card.innerText.toLowerCase().indexOf(q) !== -1;
+          card.style.display = matchesDept && matchesSearch ? '' : 'none';
+          grid.appendChild(card);
+        });
+      }
+
+      if (search) search.addEventListener('input', applyTeamView);
+      if (sort) sort.addEventListener('change', applyTeamView);
+
+      if (filters) {
+        filters.addEventListener('click', function (event) {
+          var button = event.target.closest('.filter-btn');
+          if (!button) return;
+          filters.querySelectorAll('.filter-btn').forEach(function (item) {
+            item.classList.remove('is-active');
+          });
+          button.classList.add('is-active');
+          activeDept = button.dataset.dept || 'all';
+          applyTeamView();
+        });
+      }
+
+      cards.forEach(function (card) {
+        card.addEventListener('click', function (event) {
+          if (event.target.closest('a, button, select, input')) return;
+          card.classList.toggle('is-open');
+        });
+      });
+
+      if (themeToggle) {
+        themeToggle.addEventListener('click', function () {
+          document.body.classList.toggle('team-dark');
+          themeToggle.textContent = document.body.classList.contains('team-dark') ? 'Светлая тема' : 'Тёмная тема';
+        });
+      }
+
+      var modal = document.createElement('div');
+      modal.className = 'review-modal';
+      modal.innerHTML = '<div class="review-box" role="dialog" aria-modal="true" aria-label="Отзывы клиентов">' +
+        '<button class="review-close" type="button" aria-label="Закрыть">×</button>' +
+        '<h3></h3><ul></ul></div>';
+      document.body.appendChild(modal);
+
+      function closeReviews() {
+        modal.classList.remove('is-open');
+      }
+
+      document.querySelectorAll('.rating-button').forEach(function (button) {
+        button.addEventListener('click', function (event) {
+          event.stopPropagation();
+          var title = modal.querySelector('h3');
+          var list = modal.querySelector('ul');
+          title.textContent = 'Отзывы: ' + (button.dataset.person || 'сотрудник');
+          list.innerHTML = '';
+          (button.dataset.reviews || '').split('|').forEach(function (review) {
+            var li = document.createElement('li');
+            li.textContent = '★★★★★ ' + review;
+            list.appendChild(li);
+          });
+          modal.classList.add('is-open');
+        });
+      });
+
+      modal.addEventListener('click', function (event) {
+        if (event.target === modal || event.target.closest('.review-close')) closeReviews();
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeReviews();
+      });
+
+      applyTeamView();
+    })();
+
+    (function () {
+      var fill = document.getElementById('railFill');
+      var pct = document.getElementById('railPct');
+      if (!fill || !pct) return;
+      function update() {
+        var doc = document.documentElement;
+        var scrollable = doc.scrollHeight - doc.clientHeight;
+        var ratio = scrollable > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollable)) : 0;
+        fill.style.height = (ratio * 100).toFixed(1) + '%';
+        pct.innerHTML = '<b>' + String(Math.round(ratio * 100)).padStart(2, '0') + '</b>%';
+      }
+      window.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update);
+      update();
+    })();
+  </script>
+
+</body>
+
+</html>

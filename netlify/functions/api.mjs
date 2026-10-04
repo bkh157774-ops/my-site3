@@ -1,18 +1,19 @@
 import { getStore } from '@netlify/blobs';
 import crypto from 'node:crypto';
 
-const store = getStore('lumae-data');
+let store;
 const stateKey = 'state.json';
 
-const json = (statusCode, body) => ({
-  statusCode,
+export const config = { path: '/api/*' };
+
+const json = (status, body) => new Response(JSON.stringify(body), {
+  status,
   headers: {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
     'access-control-allow-headers': 'content-type, authorization',
-    'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS'
-  },
-  body: JSON.stringify(body)
+    'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  }
 });
 
 const createId = prefix => `${prefix}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
@@ -55,16 +56,16 @@ async function writeState(state) {
   await store.setJSON(stateKey, state);
 }
 
-function authUser(event, state) {
-  const header = String(event.headers.authorization || event.headers.Authorization || '');
+function authUser(request, state) {
+  const header = request.headers.get('authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : '';
   const userId = token ? state.sessions[token] : '';
   return state.users.find(user => user.id === userId) || null;
 }
 
-function bodyJSON(event) {
+async function bodyJSON(request) {
   try {
-    return event.body ? JSON.parse(event.body) : {};
+    return request.method === 'GET' || request.method === 'HEAD' ? {} : await request.json();
   } catch {
     return {};
   }
@@ -82,19 +83,53 @@ function postWithMeta(post, state) {
   };
 }
 
-export async function handler(event) {
-  if (event.httpMethod === 'OPTIONS') return json(200, { ok: true });
-
-  const path = '/' + String(event.path || '')
-    .replace(/^\/\.netlify\/functions\/api\/?/, '')
+export default async function handler(request) {
+  const method = request.method;
+  const requestUrl = new URL(request.url);
+  const path = '/' + requestUrl.pathname
     .replace(/^\/api\/?/, '')
     .replace(/^\/+/, '');
   const parts = path.split('/').filter(Boolean);
-  const state = await readState();
-  const input = bodyJSON(event);
+
+  if (method === 'OPTIONS') return json(200, { ok: true });
 
   try {
-    if (event.httpMethod === 'POST' && path === '/auth/register') {
+    store ||= getStore('lumae-data');
+  } catch (error) {
+    return json(503, { error: 'Хранилище Netlify Blobs недоступно', code: 'BLOBS_ENVIRONMENT_MISSING' });
+  }
+
+  if (method === 'PUT' && path === '/uploads/raw') {
+    const contentType = String(request.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!/^(image|video|audio)\//.test(contentType)) return json(415, { error: 'Unsupported media type' });
+    const bytes = Buffer.from(await request.arrayBuffer());
+    const maxBytes = 4 * 1024 * 1024;
+    if (!bytes.length) return json(400, { error: 'Пустой файл' });
+    if (bytes.length > maxBytes) return json(413, { error: 'Файл больше 4 МБ. Уменьши размер и попробуй снова.' });
+    const extension = ({ 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'video/mp4': '.mp4', 'video/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/mp4': '.m4a' })[contentType] || '';
+    const key = `uploads/${crypto.randomBytes(18).toString('hex')}${extension}`;
+    await store.set(key, new Blob([bytes], { type: contentType }), { metadata: { contentType } });
+    return json(200, { success: true, url: `/api/${key}`, size: bytes.length });
+  }
+
+  if (method === 'GET' && parts[0] === 'uploads' && parts.length === 2) {
+    const entry = await store.getWithMetadata(`uploads/${parts[1]}`, { type: 'arrayBuffer' });
+    if (!entry) return json(404, { error: 'Файл не найден' });
+    return new Response(entry.data, {
+      status: 200,
+      headers: {
+        'content-type': String(entry.metadata.contentType || 'application/octet-stream'),
+        'cache-control': 'public, max-age=31536000, immutable',
+        'access-control-allow-origin': '*'
+      }
+    });
+  }
+
+  const state = await readState();
+  const input = await bodyJSON(request);
+
+  try {
+    if (method === 'POST' && path === '/auth/register') {
       const email = String(input.email || '').trim().toLowerCase();
       const password = String(input.password || '');
       const name = String(input.name || email.split('@')[0] || 'Lumae').trim();
@@ -115,7 +150,7 @@ export async function handler(event) {
       return json(200, { token, user: publicUser(user) });
     }
 
-    if (event.httpMethod === 'POST' && path === '/auth/login') {
+    if (method === 'POST' && path === '/auth/login') {
       const email = String(input.email || '').trim().toLowerCase();
       const user = state.users.find(item => item.email === email);
       if (!user || !verifyPassword(input.password || '', user.passwordHash)) {
@@ -127,25 +162,25 @@ export async function handler(event) {
       return json(200, { token, user: publicUser(user) });
     }
 
-    if (event.httpMethod === 'GET' && path === '/auth/me') {
-      const user = authUser(event, state);
+    if (method === 'GET' && path === '/auth/me') {
+      const user = authUser(request, state);
       if (!user) return json(401, { error: 'Sign in required' });
       return json(200, { user: publicUser(user) });
     }
 
-    if (event.httpMethod === 'POST' && path === '/auth/logout') {
-      const header = String(event.headers.authorization || '');
+    if (method === 'POST' && path === '/auth/logout') {
+      const header = request.headers.get('authorization') || '';
       const token = header.startsWith('Bearer ') ? header.slice(7) : '';
       if (token) delete state.sessions[token];
       await writeState(state);
       return json(200, { success: true });
     }
 
-    if (event.httpMethod === 'GET' && path === '/profiles') {
+    if (method === 'GET' && path === '/profiles') {
       return json(200, state.profiles.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))));
     }
 
-    if (event.httpMethod === 'POST' && path === '/profiles') {
+    if (method === 'POST' && path === '/profiles') {
       const profile = input.profile && typeof input.profile === 'object' ? input.profile : input;
       if (!profile.handle || !profile.name) return json(400, { error: 'Handle and name are required' });
       const now = new Date().toISOString();
@@ -157,15 +192,15 @@ export async function handler(event) {
       return json(200, { success: true, id: saved.id || saved.handle });
     }
 
-    if (event.httpMethod === 'GET' && path === '/posts') {
+    if (method === 'GET' && path === '/posts') {
       const posts = state.posts
         .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
         .map(post => postWithMeta(post, state));
       return json(200, posts);
     }
 
-    if (event.httpMethod === 'POST' && path === '/posts') {
-      const user = authUser(event, state);
+    if (method === 'POST' && path === '/posts') {
+      const user = authUser(request, state);
       if (!user) return json(401, { error: 'Sign in required' });
       const body = String(input.body || '').trim();
       const mediaUrl = String(input.mediaUrl || '').trim();
@@ -191,8 +226,8 @@ export async function handler(event) {
       return json(200, { success: true, id: state.posts[0].id });
     }
 
-    if (parts[0] === 'posts' && parts[1] && event.httpMethod === 'DELETE') {
-      const user = authUser(event, state);
+    if (parts[0] === 'posts' && parts[1] && method === 'DELETE') {
+      const user = authUser(request, state);
       if (!user) return json(401, { error: 'Sign in required' });
       const post = state.posts.find(item => item.id === parts[1]);
       if (!post) return json(404, { error: 'Post not found' });
@@ -206,8 +241,8 @@ export async function handler(event) {
       return json(200, { success: true });
     }
 
-    if (parts[0] === 'posts' && parts[1] && parts[2] === 'like' && event.httpMethod === 'POST') {
-      const user = authUser(event, state);
+    if (parts[0] === 'posts' && parts[1] && parts[2] === 'like' && method === 'POST') {
+      const user = authUser(request, state);
       if (!user) return json(401, { error: 'Sign in required' });
       const key = `${parts[1]}:${user.id}`;
       if (state.likes[key]) delete state.likes[key];
@@ -216,8 +251,8 @@ export async function handler(event) {
       return json(200, { success: true, liked: Boolean(state.likes[key]) });
     }
 
-    if (parts[0] === 'posts' && parts[1] && parts[2] === 'comments' && event.httpMethod === 'POST') {
-      const user = authUser(event, state);
+    if (parts[0] === 'posts' && parts[1] && parts[2] === 'comments' && method === 'POST') {
+      const user = authUser(request, state);
       if (!user) return json(401, { error: 'Sign in required' });
       const body = String(input.body || '').trim();
       if (!body) return json(400, { error: 'Comment text is required' });
@@ -237,7 +272,7 @@ export async function handler(event) {
     }
 
     if (path.startsWith('/admin/applications')) {
-      return json(200, event.httpMethod === 'GET' ? state.adminApplications : { success: true });
+      return json(200, method === 'GET' ? state.adminApplications : { success: true });
     }
 
     return json(404, { error: 'Not found' });

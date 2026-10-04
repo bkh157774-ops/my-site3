@@ -10,8 +10,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
+const musicSearchCache = new Map();
 const uploadDir = path.join(__dirname, 'uploads');
-const maxUploadBytes = 24 * 1024 * 1024;
+const maxUploadBytes = 512 * 1024 * 1024;
 const inlineMediaResponseLimit = 256 * 1024;
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -20,6 +21,41 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.get('/favicon.ico', (req, res) => res.status(204).end());
+app.get('/api/music/search', async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (!query) return res.json({ results: [] });
+  const searchTerm = query.toLowerCase().includes('фонк')
+    ? query.replace(/фонк/gi, 'phonk')
+    : query;
+  const cacheKey = searchTerm.normalize('NFKC').toLocaleLowerCase();
+  const cached = musicSearchCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < 5 * 60 * 1000) return res.json({ results: cached.results });
+  try {
+    const url = new URL('https://api.audius.co/v1/tracks/search');
+    url.search = new URLSearchParams({ query: searchTerm, limit: '50', app_name: 'lumae' }).toString();
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (!upstream.ok) throw new Error(`Audius search returned ${upstream.status}`);
+    const data = await upstream.json();
+    const results = (Array.isArray(data.data) ? data.data : [])
+      .filter(track => track.id && track.is_streamable !== false && !track.is_stream_gated && track.access?.stream !== false)
+      .map(track => ({
+        trackId: track.id,
+        trackName: track.title,
+        artistName: track.user?.name || 'Audius',
+        collectionName: 'Audius',
+        duration: Number(track.duration) || 0,
+        artworkUrl: track.artwork?.['480x480'] || track.artwork?.['1000x1000'] || null,
+        streamUrl: `https://api.audius.co/v1/tracks/${encodeURIComponent(track.id)}/stream?app_name=lumae`
+      }));
+    musicSearchCache.set(cacheKey, { time: Date.now(), results });
+    if (musicSearchCache.size > 100) musicSearchCache.delete(musicSearchCache.keys().next().value);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ results });
+  } catch (error) {
+    console.warn('Audius music search unavailable:', error.message);
+    res.status(502).json({ error: 'Поиск музыки Audius временно недоступен' });
+  }
+});
 app.use(express.static(__dirname));
 
 // Database setup
@@ -89,6 +125,22 @@ function initDB() {
       )
     `);
     db.run(`
+      CREATE TABLE IF NOT EXISTS music_tracks (
+        id TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL DEFAULT '',
+        album TEXT NOT NULL DEFAULT 'Мои треки',
+        genre TEXT NOT NULL DEFAULT 'поп',
+        duration INTEGER NOT NULL DEFAULT 0,
+        audioUrl TEXT NOT NULL,
+        artwork TEXT NOT NULL DEFAULT '',
+        fileName TEXT NOT NULL DEFAULT '',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id, userId)
+      )
+    `);
+    db.run(`
       CREATE TABLE IF NOT EXISTS posts (
         id TEXT PRIMARY KEY,
         userId TEXT,
@@ -99,8 +151,17 @@ function initDB() {
         body TEXT NOT NULL,
         mediaUrl TEXT,
         mediaType TEXT,
+        mediaGallery TEXT DEFAULT '[]',
+        topic TEXT DEFAULT '',
+        allowDownload INTEGER DEFAULT 1,
+        allowSaveToNotes INTEGER DEFAULT 1,
+        isAd INTEGER DEFAULT 0,
+        backgroundColor TEXT DEFAULT '#ffffff',
+        backgroundImage TEXT DEFAULT '',
         trackUrl TEXT,
         trackName TEXT,
+        trackArtist TEXT DEFAULT '',
+        trackArtwork TEXT DEFAULT '',
         views INTEGER DEFAULT 0,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
       )
@@ -109,9 +170,26 @@ function initDB() {
     addColumn('posts', 'authorProfileId TEXT');
     addColumn('posts', 'trackUrl TEXT');
     addColumn('posts', 'trackName TEXT');
+    addColumn('posts', "trackArtist TEXT DEFAULT ''");
+    addColumn('posts', "trackArtwork TEXT DEFAULT ''");
     addColumn('posts', 'views INTEGER DEFAULT 0');
+    addColumn('posts', "mediaGallery TEXT DEFAULT '[]'");
+    addColumn('posts', "topic TEXT DEFAULT ''");
+    addColumn('posts', 'allowDownload INTEGER DEFAULT 1');
+    addColumn('posts', 'allowSaveToNotes INTEGER DEFAULT 1');
+    addColumn('posts', 'isAd INTEGER DEFAULT 0');
+    addColumn('posts', "backgroundColor TEXT DEFAULT '#ffffff'");
+    addColumn('posts', "backgroundImage TEXT DEFAULT ''");
     db.run(`
       CREATE TABLE IF NOT EXISTS post_likes (
+        postId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (postId, userId)
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS post_dislikes (
         postId TEXT NOT NULL,
         userId TEXT NOT NULL,
         createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -132,6 +210,19 @@ function initDB() {
     `);
     addColumn('post_comments', 'authorHandle TEXT');
     addColumn('post_comments', 'authorAvatar TEXT');
+    db.run(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        postId TEXT NOT NULL,
+        actorName TEXT NOT NULL,
+        actorHandle TEXT,
+        body TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        readAt DATETIME
+      )
+    `);
     db.run(
       `DELETE FROM posts
        WHERE id = 'demo-post'
@@ -353,6 +444,44 @@ function optionalAuth(req, res, callback) {
   });
 }
 
+app.get('/api/music/tracks', (req, res) => {
+  requireAuth(req, res, user => {
+    db.all('SELECT id,title,artist,album,genre,duration AS dur,audioUrl,artwork,fileName FROM music_tracks WHERE userId = ? ORDER BY createdAt DESC', [user.id], (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Не удалось загрузить музыку' });
+      res.json({ tracks: rows.map(row => ({ ...row, id: String(row.id), mine: true, remote: true })) });
+    });
+  });
+});
+
+app.post('/api/music/tracks', (req, res) => {
+  requireAuth(req, res, user => {
+    const track = req.body || {};
+    const id = String(track.id || '').slice(0, 80);
+    const title = String(track.title || '').trim().slice(0, 160);
+    const audioUrl = String(track.audioUrl || '').trim();
+    if (!id || !title || !/^https:\/\/[^/]+\/uploads\/|^\/uploads\//i.test(audioUrl)) {
+      return res.status(400).json({ error: 'Нужны название и загруженный аудиофайл' });
+    }
+    db.run(`INSERT INTO music_tracks (id,userId,title,artist,album,genre,duration,audioUrl,artwork,fileName)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id,userId) DO UPDATE SET title=excluded.title,artist=excluded.artist,duration=excluded.duration,audioUrl=excluded.audioUrl,artwork=excluded.artwork,fileName=excluded.fileName`,
+    [id,user.id,title,String(track.artist || '').trim().slice(0,120),'Мои треки','поп',Math.max(0,Math.floor(Number(track.dur) || 0)),audioUrl,String(track.artwork || '').slice(0,1000),String(track.fileName || '').slice(0,255)],
+    err => {
+      if (err) return res.status(500).json({ error: 'Не удалось сохранить трек в аккаунте' });
+      res.status(201).json({ success: true, track: { ...track, id, title, audioUrl, mine: true, remote: true } });
+    });
+  });
+});
+
+app.delete('/api/music/tracks/:id', (req, res) => {
+  requireAuth(req, res, user => {
+    db.run('DELETE FROM music_tracks WHERE id = ? AND userId = ?', [String(req.params.id), user.id], function (err) {
+      if (err) return res.status(500).json({ error: 'Не удалось удалить трек' });
+      res.json({ success: true, deleted: this.changes > 0 });
+    });
+  });
+});
+
 function normalizePost(row, comments = []) {
   return {
     id: row.id,
@@ -364,8 +493,19 @@ function normalizePost(row, comments = []) {
     body: row.body,
     mediaUrl: publicMediaValue(row.mediaUrl) || '',
     mediaType: row.mediaType || '',
+    mediaGallery: (() => { try { return JSON.parse(row.mediaGallery || '[]').map(publicMediaValue).filter(Boolean); } catch { return []; } })(),
+    topic: row.topic || '',
+    allowDownload: Number(row.allowDownload ?? 1) !== 0,
+    allowSaveToNotes: Number(row.allowSaveToNotes ?? 1) !== 0,
+    isAd: Number(row.isAd || 0) !== 0,
+    backgroundColor: row.backgroundColor || '#ffffff',
+    backgroundImage: publicMediaValue(row.backgroundImage) || '',
+    dislikes: Number(row.dislikes || 0),
+    dislikedByMe: Boolean(Number(row.dislikedByMe || 0)),
     trackUrl: publicMediaValue(row.trackUrl) || '',
     trackName: row.trackName || '',
+    trackArtist: row.trackArtist || '',
+    trackArtwork: publicMediaValue(row.trackArtwork) || '',
     createdAt: row.createdAt,
     likes: Number(row.likes || 0),
     likedByMe: Boolean(Number(row.likedByMe || 0)),
@@ -451,6 +591,67 @@ app.post('/api/uploads', async (req, res) => {
   } catch (error) {
     res.status(error.status || 500).json({ error: error.message || 'Upload failed' });
   }
+});
+
+app.put('/api/uploads/raw', (req, res) => {
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (!/^(image|video|audio)\//.test(mime)) {
+    return res.status(415).json({ error: 'Unsupported media type' });
+  }
+
+  const scope = String(req.query.scope || 'media').replace(/[^a-z0-9_-]/gi, '').slice(0, 28) || 'media';
+  const name = String(req.query.name || 'media');
+  const filename = `${scope}-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}${uploadExtension(mime, name)}`;
+  const tempPath = path.join(uploadDir, `${filename}.part`);
+  const finalPath = path.join(uploadDir, filename);
+  const output = fs.createWriteStream(tempPath, { flags: 'wx' });
+  let size = 0;
+  let settled = false;
+  let finished = false;
+
+  const cleanup = async () => {
+    if (!output.closed) {
+      await new Promise(resolve => output.once('close', resolve));
+    }
+    await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+  };
+  const fail = async (status, message) => {
+    if (settled) return;
+    settled = true;
+    req.unpipe(output);
+    req.resume();
+    output.destroy();
+    await cleanup();
+    if (!res.headersSent) res.status(status).json({ error: message });
+  };
+
+  req.on('data', chunk => {
+    if (settled) return;
+    size += chunk.length;
+    if (size > maxUploadBytes) fail(413, 'Видео или файл больше лимита 512 МБ. Пост и черновик не сохранены на сервере.');
+  });
+  req.on('aborted', () => {
+    if (settled) return;
+    settled = true;
+    req.unpipe(output);
+    output.destroy();
+    cleanup();
+  });
+  output.on('error', error => fail(500, error.message || 'Не удалось сохранить файл'));
+  output.on('finish', () => { finished = true; });
+  output.on('close', async () => {
+    if (settled || !finished) return;
+    if (!size) return fail(400, 'Пустой файл');
+    settled = true;
+    try {
+      await fs.promises.rename(tempPath, finalPath);
+      res.json({ success: true, url: `/uploads/${filename}`, size });
+    } catch (error) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+      if (!res.headersSent) res.status(500).json({ error: 'Не удалось завершить сохранение файла' });
+    }
+  });
+  req.pipe(output);
 });
 
 // GET all profiles
@@ -614,17 +815,29 @@ app.get('/api/posts', (req, res) => {
         posts.body,
         CASE WHEN posts.mediaUrl LIKE 'data:%' AND length(posts.mediaUrl) > ? THEN '' ELSE posts.mediaUrl END AS mediaUrl,
         posts.mediaType,
+        posts.mediaGallery,
+        posts.topic,
+        posts.allowDownload,
+        posts.allowSaveToNotes,
+        posts.isAd,
+        posts.backgroundColor,
+        CASE WHEN posts.backgroundImage LIKE 'data:%' AND length(posts.backgroundImage) > ? THEN '' ELSE posts.backgroundImage END AS backgroundImage,
         CASE WHEN posts.trackUrl LIKE 'data:%' AND length(posts.trackUrl) > ? THEN '' ELSE posts.trackUrl END AS trackUrl,
         posts.trackName,
+        posts.trackArtist,
+        CASE WHEN posts.trackArtwork LIKE 'data:%' AND length(posts.trackArtwork) > ? THEN '' ELSE posts.trackArtwork END AS trackArtwork,
         posts.views,
         posts.createdAt,
-        COUNT(post_likes.userId) AS likes,
-        MAX(CASE WHEN post_likes.userId = ? THEN 1 ELSE 0 END) AS likedByMe
+        COUNT(DISTINCT post_likes.userId) AS likes,
+        MAX(CASE WHEN post_likes.userId = ? THEN 1 ELSE 0 END) AS likedByMe,
+        COUNT(DISTINCT post_dislikes.userId) AS dislikes,
+        MAX(CASE WHEN post_dislikes.userId = ? THEN 1 ELSE 0 END) AS dislikedByMe
      FROM posts
      LEFT JOIN post_likes ON post_likes.postId = posts.id
+     LEFT JOIN post_dislikes ON post_dislikes.postId = posts.id
      GROUP BY posts.id
      ORDER BY posts.createdAt DESC`,
-      [inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, user?.id || ''],
+      [inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, user?.id || '', user?.id || ''],
       (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         db.all(
@@ -659,8 +872,17 @@ app.post('/api/posts', (req, res) => {
   optionalAuth(req, res, (user) => {
     const body = String(req.body.body || '').trim();
     const mediaUrl = String(req.body.mediaUrl || '').trim();
+    const mediaGallery = JSON.stringify(Array.isArray(req.body.mediaGallery) ? req.body.mediaGallery.slice(0, 20).map(value => String(value || '').trim()).filter(Boolean) : []);
+    const topic = String(req.body.topic || '').trim().slice(0, 40);
+    const allowDownload = req.body.allowDownload === false ? 0 : 1;
+    const allowSaveToNotes = req.body.allowSaveToNotes === false ? 0 : 1;
+    const isAd = req.body.isAd === true ? 1 : 0;
+    const backgroundColor = String(req.body.backgroundColor || '#ffffff').slice(0, 120);
+    const backgroundImage = String(req.body.backgroundImage || '').trim();
     const trackUrl = String(req.body.trackUrl || '').trim();
     const trackName = String(req.body.trackName || '').trim();
+    const trackArtist = String(req.body.trackArtist || '').trim().slice(0, 120);
+    const trackArtwork = String(req.body.trackArtwork || '').trim();
     if (!body && !mediaUrl && !trackUrl) return res.status(400).json({ error: 'Post text, media or track is required' });
     const requestedId = String(req.body.id || '').trim();
     if (requestedId === 'demo-post') return res.status(400).json({ error: 'Demo post is disabled' });
@@ -675,9 +897,9 @@ app.post('/api/posts', (req, res) => {
       if (findErr) return res.status(500).json({ error: findErr.message });
       if (existing) return res.json({ success: true, id, duplicate: true });
       db.run(
-        `INSERT INTO posts (id, userId, authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, mediaType, trackUrl, trackName, views, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, user?.id || '', authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, req.body.mediaType || '', trackUrl, trackName, 0, createdAt],
+        `INSERT INTO posts (id, userId, authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, mediaType, mediaGallery, topic, allowDownload, allowSaveToNotes, isAd, backgroundColor, backgroundImage, trackUrl, trackName, trackArtist, trackArtwork, views, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, user?.id || '', authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, req.body.mediaType || '', mediaGallery, topic, allowDownload, allowSaveToNotes, isAd, backgroundColor, backgroundImage, trackUrl, trackName, trackArtist, trackArtwork, 0, createdAt],
         (err) => {
           if (err) return res.status(500).json({ error: err.message });
           res.json({ success: true, id });
@@ -689,6 +911,7 @@ app.post('/api/posts', (req, res) => {
 
 app.post('/api/posts/:id/like', (req, res) => {
   requireAuth(req, res, (user) => {
+    db.run('DELETE FROM post_dislikes WHERE postId = ? AND userId = ?', [req.params.id, user.id]);
     db.get('SELECT 1 FROM post_likes WHERE postId = ? AND userId = ?', [req.params.id, user.id], (err, row) => {
       if (err) return res.status(500).json({ error: err.message });
       if (row) {
@@ -697,6 +920,23 @@ app.post('/api/posts/:id/like', (req, res) => {
         db.run('INSERT INTO post_likes (postId, userId) VALUES (?, ?)', [req.params.id, user.id], (insertErr) => {
           if (insertErr) return res.status(500).json({ error: insertErr.message });
           res.json({ success: true, liked: true });
+        });
+      }
+    });
+  });
+});
+
+app.post('/api/posts/:id/dislike', (req, res) => {
+  requireAuth(req, res, (user) => {
+    db.get('SELECT 1 FROM post_dislikes WHERE postId = ? AND userId = ?', [req.params.id, user.id], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row) {
+        db.run('DELETE FROM post_dislikes WHERE postId = ? AND userId = ?', [req.params.id, user.id], () => res.json({ success: true, disliked: false }));
+      } else {
+        db.run('DELETE FROM post_likes WHERE postId = ? AND userId = ?', [req.params.id, user.id]);
+        db.run('INSERT OR REPLACE INTO post_dislikes (postId, userId) VALUES (?, ?)', [req.params.id, user.id], (insertErr) => {
+          if (insertErr) return res.status(500).json({ error: insertErr.message });
+          res.json({ success: true, disliked: true });
         });
       }
     });
@@ -726,6 +966,7 @@ app.delete('/api/posts/:id', (req, res) => {
       if (post.userId !== user.id) return res.status(403).json({ error: 'You can delete only your own posts' });
       db.serialize(() => {
         db.run('DELETE FROM post_likes WHERE postId = ?', [req.params.id]);
+        db.run('DELETE FROM post_dislikes WHERE postId = ?', [req.params.id]);
         db.run('DELETE FROM post_comments WHERE postId = ?', [req.params.id]);
         db.run('DELETE FROM posts WHERE id = ?', [req.params.id], function(deleteErr) {
           if (deleteErr) return res.status(500).json({ error: deleteErr.message });
@@ -747,7 +988,10 @@ app.post('/api/posts/:id/comments', (req, res) => {
     const authorName = String(req.body.authorName || user.name || user.email).trim();
     const authorHandle = String(req.body.authorHandle || user.handle || '').replace(/^@/, '').trim();
     const authorAvatar = String(req.body.authorAvatar || '').trim();
-    db.get('SELECT id FROM post_comments WHERE id = ? AND userId = ?', [id, user.id], (findErr, existing) => {
+    db.get('SELECT userId FROM posts WHERE id = ?', [req.params.id], (postErr, post) => {
+      if (postErr) return res.status(500).json({ error: postErr.message });
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      db.get('SELECT id FROM post_comments WHERE id = ? AND userId = ?', [id, user.id], (findErr, existing) => {
       if (findErr) return res.status(500).json({ error: findErr.message });
       if (existing) return res.json({ success: true, id, duplicate: true });
       db.run(
@@ -755,9 +999,41 @@ app.post('/api/posts/:id/comments', (req, res) => {
         [id, req.params.id, user.id, authorName, authorHandle, authorAvatar, body, createdAt],
         (err) => {
           if (err) return res.status(500).json({ error: err.message });
-          res.json({ success: true, id });
+          const respond = () => res.json({ success: true, id, createdAt });
+          if (!post.userId || post.userId === user.id) return respond();
+          db.run(
+            'INSERT INTO notifications (id, userId, type, postId, actorName, actorHandle, body, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [createId('NTF'), post.userId, 'post_comment', req.params.id, authorName, authorHandle, body, createdAt],
+            notifyErr => {
+              if (notifyErr) console.error('Could not save comment notification:', notifyErr.message);
+              respond();
+            }
+          );
         }
       );
+      });
+    });
+  });
+});
+
+app.get('/api/notifications', (req, res) => {
+  requireAuth(req, res, user => {
+    db.all(
+      'SELECT id, type, postId, actorName, actorHandle, body, createdAt, readAt FROM notifications WHERE userId = ? ORDER BY createdAt DESC LIMIT 50',
+      [user.id],
+      (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ notifications: rows, unread: rows.filter(row => !row.readAt).length });
+      }
+    );
+  });
+});
+
+app.post('/api/notifications/read', (req, res) => {
+  requireAuth(req, res, user => {
+    db.run('UPDATE notifications SET readAt = COALESCE(readAt, ?) WHERE userId = ?', [new Date().toISOString(), user.id], err => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
     });
   });
 });
