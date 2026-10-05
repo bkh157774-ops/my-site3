@@ -23484,11 +23484,14 @@
           method: 'POST',
           body: JSON.stringify({ profile: serverProfile })
         });
+        usersV8LastProfileSaveError = '';
         return true;
       } catch (error) {
+        usersV8LastProfileSaveError = error.message || 'Сервер не принял профиль или медиа.';
         return false;
       }
     }
+    let usersV8LastProfileSaveError = '';
     async function usersV8ProfilePayloadForServer(profile) {
       const copy = { ...profile };
       for (const key of ['bannerImgSrc', 'bannerVidSrc', 'avaImgSrc', 'avaVidSrc']) {
@@ -23574,8 +23577,8 @@
       if (avatar) {
         const type = detectMediaType(avatar, post.authorAvatarType || '');
         return type === 'video'
-          ? `<video ${lumaeMediaAttr(avatar)} data-avatar-fallback="${initial}" loop muted autoplay playsinline onerror="lumaeAvatarLoadError(this)"></video>`
-          : `<img ${lumaeMediaAttr(avatar)} data-avatar-fallback="${initial}" alt="${usersV8EscapeHTML(name)}" onerror="lumaeAvatarLoadError(this)">`;
+          ? `<video ${lumaeMediaAttr(avatar)} data-avatar-fallback="${initial}" loop muted autoplay playsinline preload="none" onerror="lumaeAvatarLoadError(this)"></video>`
+          : `<img ${lumaeMediaAttr(avatar)} data-avatar-fallback="${initial}" alt="${usersV8EscapeHTML(name)}" loading="lazy" onerror="lumaeAvatarLoadError(this)">`;
       }
       return initial;
     }
@@ -23981,7 +23984,7 @@
       const galleryMosaic = gallery.length > 1 ? `<div class="post-gallery-mosaic count-${Math.min(gallery.length, 5)}" aria-label="${gallery.length} медиафайлов в публикации">
           ${gallery.slice(0, 5).map((url, index) => {
             const itemType = galleryTypes[index] || detectMediaType(url, index === 0 ? type : '') || 'image';
-            const source = itemType === 'video' ? `<video ${lumaeMediaAttr(url)} muted loop playsinline preload="metadata" aria-label="Видео ${index + 1}"></video>` : `<img ${lumaeMediaAttr(url)} alt="Фото ${index + 1}">`;
+            const source = itemType === 'video' ? `<video ${lumaeMediaAttr(url)} muted loop playsinline preload="none" aria-label="Видео ${index + 1}"></video>` : `<img ${lumaeMediaAttr(url)} alt="Фото ${index + 1}" loading="lazy">`;
             const videoBadge = itemType === 'video' ? '<span class="post-gallery-video-badge" aria-hidden="true">▶</span>' : '';
             const more = index === 4 && gallery.length > 5 ? `<span class="post-gallery-more">+${gallery.length - 5}</span>` : '';
             return `<button class="post-gallery-tile" type="button" aria-label="Открыть ${itemType === 'video' ? 'видео' : 'фото'} ${index + 1} из ${gallery.length}" onclick="openPostGallery('${safeId}',${index})">${source}${videoBadge}${more}</button>`;
@@ -23991,7 +23994,7 @@
           ${galleryMosaic}
           ${gallery.map((url, index) => {
             const itemType = galleryTypes[index] || detectMediaType(url, index === 0 ? type : '') || 'image';
-            const source = itemType === 'video' ? `<video ${lumaeMediaAttr(url)} controls playsinline preload="metadata"></video>` : `<img ${lumaeMediaAttr(url)} alt="Фото ${index + 1} публикации">`;
+            const source = itemType === 'video' ? `<video ${lumaeMediaAttr(url)} controls playsinline preload="none"></video>` : `<img ${lumaeMediaAttr(url)} alt="Фото ${index + 1} публикации" loading="lazy">`;
             return `<div class="post-gallery-slide${index === 0 ? ' active' : ''}" data-gallery-index="${index}">${source}</div>`;
           }).join('')}
           ${gallery.length > 1 ? `<button class="post-gallery-overview" type="button" aria-label="Вернуться к миниатюрам" title="Все фото" onclick="showPostGalleryMosaic('${safeId}')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></button><button class="post-gallery-arrow prev" type="button" aria-label="Предыдущее фото" onclick="shiftPostGallery('${safeId}',-1)">‹</button><button class="post-gallery-arrow next" type="button" aria-label="Следующее фото" onclick="shiftPostGallery('${safeId}',1)">›</button><span class="post-gallery-counter">1 / ${gallery.length}</span>` : ''}
@@ -23999,7 +24002,7 @@
         const trackUrl = post.trackUrl || '';
         const trackName = usersV8EscapeHTML(post.trackName || 'Трек Lumae');
         const trackArtist = usersV8EscapeHTML(post.trackArtist || 'Трек к публикации');
-        const trackArtwork = post.trackArtwork ? `<img class="post-track-cover" ${lumaeMediaAttr(post.trackArtwork)} alt="Обложка ${trackName}">` : '<span class="post-track-icon">♪</span>';
+        const trackArtwork = post.trackArtwork ? `<img class="post-track-cover" ${lumaeMediaAttr(post.trackArtwork)} alt="Обложка ${trackName}" loading="lazy">` : '<span class="post-track-icon">♪</span>';
         const track = trackUrl ? `<div class="post-track-card">
       <div class="post-track-top">${trackArtwork}<div><strong>${trackName}</strong><small>${trackArtist}</small></div></div>
       <div class="post-track-player"><audio ${lumaeMediaAttr(trackUrl)} controls preload="metadata"></audio></div>
@@ -24014,7 +24017,7 @@
         const backgroundType = post.backgroundMediaType === 'video' ? 'video' : detectMediaType(post.backgroundImage || '', 'image');
       const hasPostBackground = !!post.backgroundImage || bodyBg !== '#ffffff';
       const cardBackgroundMarkup = post.backgroundImage
-        ? `<div class="post-card-background" aria-hidden="true">${backgroundType === 'video' ? `<video ${lumaeMediaAttr(post.backgroundImage)} muted loop autoplay playsinline preload="metadata"></video>` : `<img ${lumaeMediaAttr(post.backgroundImage)} alt="">`}</div>`
+        ? `<div class="post-card-background" aria-hidden="true">${backgroundType === 'video' ? `<video ${lumaeMediaAttr(post.backgroundImage)} muted loop autoplay playsinline preload="none"></video>` : `<img ${lumaeMediaAttr(post.backgroundImage)} alt="" loading="lazy">`}</div>`
         : '';
       const bodyMarkup = body ? `<div class="post-body${hasPostBackground ? ' has-card-background' : ''}"><div class="post-body-text">${body}</div></div>` : '';
         const deleteAction = canDeletePost(post) ? `<button type="button" class="post-menu-danger" onclick="deletePost('${safeId}')">Удалить пост</button>` : '';
@@ -25648,6 +25651,7 @@
       usersV8SyncLocalPostAuthor(profile);
       usersV8SaveProfileToServer(profile).then(saved => {
         if (saved) usersV8RefreshPublicProfiles();
+        else showToast('Профиль пока только на этом устройстве', usersV8LastProfileSaveError || 'Не удалось отправить аватар и фон на сервер. Проверь соединение и повтори сохранение.');
       });
       usersV8BuildAllCards();
       usersV8CloseModal();
@@ -26390,7 +26394,7 @@
         loadPosts(true).then(() => { if (activeCommentsPostId) renderPostComments(); });
         lumaeRefreshNotifications(true);
       }
-    }, 8000);
+    }, 30000);
     lumaeMigrateOldInlineMedia().then(() => usersV8RepairOwnProfileMediaOnServer()).catch(() => { });
     document.addEventListener('click', event => {
       closePostMenus();

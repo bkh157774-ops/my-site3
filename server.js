@@ -56,6 +56,7 @@ app.get('/api/music/search', async (req, res) => {
     res.status(502).json({ error: 'Поиск музыки Audius временно недоступен' });
   }
 });
+app.use('/uploads', express.static(uploadDir, { maxAge: '1y', immutable: true }));
 app.use(express.static(__dirname));
 
 // Database setup
