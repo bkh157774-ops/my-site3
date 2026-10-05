@@ -11,7 +11,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 const musicSearchCache = new Map();
-const uploadDir = path.join(__dirname, 'uploads');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const uploadDir = path.join(DATA_DIR, 'uploads');
 const maxUploadBytes = 512 * 1024 * 1024;
 const inlineMediaResponseLimit = 256 * 1024;
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -57,10 +59,17 @@ app.get('/api/music/search', async (req, res) => {
   }
 });
 app.use('/uploads', express.static(uploadDir, { maxAge: '1y', immutable: true }));
+// Не отдаём наружу базу, логи и служебные файлы
+app.use((req, res, next) => {
+  if (/\.(db|sqlite|log)$|(^|\/)(server\.js|package(-lock)?\.json|render\.yaml|netlify\.toml|\.gitignore)$|\.md$/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  next();
+});
 app.use(express.static(__dirname));
 
 // Database setup
-const db = new sqlite3.Database(path.join(__dirname, 'profiles.db'), (err) => {
+const db = new sqlite3.Database(path.join(DATA_DIR, 'profiles.db'), (err) => {
   if (err) {
     console.error('Database error:', err);
   } else {
