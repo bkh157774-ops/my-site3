@@ -19680,6 +19680,17 @@
     body.lumae-settings-dark #section-settings .setting-select-menu { background:#1b1d23!important; border-color:#3a3c44!important; }
     body.lumae-settings-dark #section-settings .setting-select-option { background:transparent!important; color:#e8e8ed!important; }
     body.lumae-settings-dark #section-settings .setting-select-option[aria-selected="true"] { background:#f1f0f5!important; color:#17181e!important; }
+    #section-settings .setting-select-trigger,
+    body.lumae-settings-dark #section-settings .setting-select-trigger { background:#fff!important; color:#252832!important; border-color:#dfe2e8!important; }
+    #section-settings .setting-select-menu,
+    body.lumae-settings-dark #section-settings .setting-select-menu { background:#fff!important; border-color:#e3e5eb!important; }
+    #section-settings .setting-select-option,
+    body.lumae-settings-dark #section-settings .setting-select-option,
+    body.lumae-settings-dark #section-settings .setting-select-option[aria-selected="true"] { background:#fff!important; color:#343844!important; }
+    #section-settings .setting-select-option:hover,
+    #section-settings .setting-select-option:focus-visible,
+    body.lumae-settings-dark #section-settings .setting-select-option:hover,
+    body.lumae-settings-dark #section-settings .setting-select-option:focus-visible { background:#f5f5f7!important; color:#252832!important; }
     body.lumae-settings-dark #section-settings .settings-search { background:#202228!important; border-color:#3a3c44!important; }
     body.lumae-settings-amoled { --settings-bg:#000; --settings-surface:#090a0c; --settings-border:#24262c; background:#000; }
     body.lumae-settings-small-text #section-settings .setting-copy strong { font-size:12px; }
@@ -21968,6 +21979,16 @@
       lumaeAuth = null;
       localStorage.removeItem('lumae.auth');
       updateAuthUI();
+    }
+    function lumaePromptSignInAfterAuthError(error) {
+      if (error?.status !== 401) return false;
+      lumaeClearInvalidAuth();
+      authMode = 'login';
+      renderAuthMode();
+      const authError = document.getElementById('authError');
+      if (authError) authError.textContent = 'Сессия истекла. Войди снова, чтобы продолжить.';
+      document.getElementById('authModal')?.classList.add('show');
+      return true;
     }
     function lumaeIsLocalMediaRef(value) {
       return typeof value === 'string' && value.startsWith(lumaeLocalMediaPrefix);
@@ -24480,7 +24501,9 @@
           loadPosts();
           return;
         } catch (apiError) {
-          showToast('Like was not saved', 'Please sign in again and try once more.');
+          if (!lumaePromptSignInAfterAuthError(apiError)) {
+            showToast('Не удалось сохранить лайк', apiError.message || `Ошибка сервера (${apiError.status || 'нет ответа'}). Попробуй ещё раз.`);
+          }
           return;
         }
       }
@@ -24508,7 +24531,12 @@
           await usersV8FetchJSON(`/api/posts/${encodeURIComponent(id)}/dislike`, { method: 'POST' });
           loadPosts();
           return;
-        } catch (error) { showToast('Не удалось сохранить реакцию', 'Попробуй ещё раз.'); return; }
+        } catch (error) {
+          if (!lumaePromptSignInAfterAuthError(error)) {
+            showToast('Не удалось сохранить реакцию', error.message || `Ошибка сервера (${error.status || 'нет ответа'}). Попробуй ещё раз.`);
+          }
+          return;
+        }
       }
       const key = 'lumae.post.disliked.' + id;
       const disliked = localStorage.getItem(key) === '1';
@@ -24832,7 +24860,9 @@
       } catch (apiError) {
         post.comments = (post.comments || []).filter(comment => comment !== optimisticComment);
         if (input) input.value = body;
-        showToast('Комментарий не отправлен', 'Проверь соединение и попробуй ещё раз.');
+        if (!lumaePromptSignInAfterAuthError(apiError)) {
+          showToast('Комментарий не отправлен', apiError.message || `Ошибка сервера (${apiError.status || 'нет ответа'}). Текст сохранён в поле.`);
+        }
       } finally {
         lumaeCommentPending = false;
         if (submit) {
