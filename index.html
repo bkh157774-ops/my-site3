@@ -18710,7 +18710,7 @@
     .post-comment-form button:disabled { opacity: .65; cursor: wait; }
     .post-comments-modal { border: 1px solid rgba(255, 255, 255, .7); }
     .post-comment { overflow-wrap: anywhere; }
-    .post-comments-inline { display: grid; gap: 0; margin: 0 14px 14px; padding: 4px 14px 12px; border-top: 1px solid #eceef2; }
+    .post-comments-inline { position: relative; z-index: 6; display: grid; gap: 0; margin: 0 14px 14px; padding: 4px 14px 12px; border-top: 1px solid #eceef2; }
     .post-comments-inline[hidden] { display: none !important; }
     .post-comments-heading { display: flex; align-items: center; gap: 7px; padding: 12px 0 2px; color: #333842; font-size: 13px; }
     .post-comments-heading span { color: #858b96; font-size: 12px; }
@@ -19594,10 +19594,174 @@
     body.lumae-settings-dark .nav-menu a { color:#eeeef2; }
     body.lumae-settings-dark.recommendations-home #section-posts,body.lumae-settings-dark.recommendations-home .posts-root { color:#efeff2; }
     body.lumae-settings-dark.recommendations-home .post-card,body.lumae-settings-dark.recommendations-home .post-card-inner { background:#1d2026!important; border-color:#353840!important; color:#f1f1f4!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner { --post-dark-panel:rgba(22,24,30,.9); --post-dark-control:#30333c; }
     body.lumae-settings-dark.recommendations-home .post-card-inner * { color:inherit; }
+    body.lumae-settings-dark.recommendations-home .post-card-background::after { background:linear-gradient(145deg,rgba(0,0,0,.32),rgba(0,0,0,.14) 48%,rgba(0,0,0,.5)); }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-head,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-body,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-actions { background:var(--post-dark-panel)!important; border-color:rgba(255,255,255,.16)!important; color:#f4f4f7!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
     body.lumae-settings-dark.recommendations-home .post-actions,body.lumae-settings-dark.recommendations-home .post-comments-inline { background:#20232a!important; border-color:#373a42!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > button:not(.post-action-follow),
+    body.lumae-settings-dark.recommendations-home .post-action-follow { background:var(--post-dark-control)!important; border:1px solid #454953!important; color:#f1f1f4!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > button.like { color:#ff8290!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > button.like.is-liked { background:#492b34!important; color:#ff9aa5!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > button.post-dislike.is-disliked,
+    body.lumae-settings-dark.recommendations-home .post-actions > button.post-save-trigger.post-action-saved { background:#34334a!important; color:#d1c8ff!important; }
+    body.lumae-settings-dark.recommendations-home .post-reco-strip { background:#1d2026!important; border-color:#353840!important; color:#f1f1f4!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-reco-strip span { color:#b3b7c2!important; }
+    body.lumae-settings-dark.recommendations-home .post-reco-pill { background:#253849!important; color:#9bd9ff!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background .post-menu-dot { background:#30333c!important; color:#f1f1f4!important; border-color:#454953!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu { background:#1b1e24!important; border-color:#454953!important; color:#f1f1f4!important; box-shadow:0 18px 46px rgba(0,0,0,.55)!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu button { background:transparent!important; color:#f1f1f4!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu button:hover { background:#30333c!important; color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu button.post-menu-danger { color:#ff8792!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline { color:#f1f1f4!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comments-heading,
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-body { color:#e6e7ec!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comments-heading span,
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment time { color:#aeb3bf!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-meta strong { color:#f6f6f8!important; }
+    body.lumae-settings-dark.recommendations-home .post-comment-handle { background:#34334a!important; color:#d6ceff!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form input { background:#17191f!important; border-color:#454953!important; color:#f4f4f7!important; caret-color:#f4f4f7; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form input::placeholder { color:#aeb3bf!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form button { background:#e7e4f4!important; color:#191922!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-quick button,
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-tools button { background:#30333c!important; color:#f1f1f4!important; }
+    body.lumae-settings-dark.recommendations-home .posts-empty-state { border-color:#353840!important; background:#1d2026!important; color:#c4c7d0!important; }
+    body.lumae-settings-dark.recommendations-home .posts-empty-state strong { color:#f1f1f4!important; }
     body.lumae-settings-dark.recommendations-home .post-feed-tab:not([aria-selected="true"]),body.lumae-settings-dark.recommendations-home .posts-settings-btn { background:#202229!important; border-color:#373a42!important; color:#ededf2!important; }
     body.lumae-settings-dark .app-dock-shell .app-dock { background:rgba(29,32,38,.94)!important; border-color:#393b43!important; }
+    /* Solid monochrome dark theme: no translucent glass surfaces. */
+    body.lumae-settings-dark.recommendations-home { background:#000!important; }
+    body.lumae-settings-dark { --settings-bg:#000; background:#000!important; }
+    body.lumae-settings-dark.recommendations-home #section-posts,
+    body.lumae-settings-dark.recommendations-home .posts-root { color:#f5f5f5!important; }
+    body.lumae-settings-dark.recommendations-home .posts-hero-main h2 { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-feed-tab { background:#111!important; border-color:#454545!important; color:#e8e8e8!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-feed-tab[aria-selected="true"] { background:#f5f5f5!important; border-color:#f5f5f5!important; color:#080808!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-feed-tabs { display:flex!important; flex-wrap:nowrap!important; gap:8px!important; overflow-x:auto!important; overflow-y:hidden!important; padding:10px 0 6px!important; scrollbar-width:none; }
+    body.lumae-settings-dark.recommendations-home .post-feed-tabs::-webkit-scrollbar { display:none; }
+    body.lumae-settings-dark.recommendations-home .post-feed-tab { flex:0 0 auto!important; width:auto!important; min-width:max-content!important; padding:0 15px!important; }
+    body.lumae-settings-dark.recommendations-home .posts-settings-btn,
+    body.lumae-settings-dark.recommendations-home .posts-create-btn { background:#111!important; border:1px solid #454545!important; color:#fff!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .posts-create-btn:hover { background:#252525!important; }
+    body.lumae-settings-dark.recommendations-home nav { background:#080808!important; border-color:#303030!important; box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .nlogo { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nlogo .ndot { background:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nav-left { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nlogo { text-shadow:none!important; opacity:1!important; visibility:visible!important; }
+    body.lumae-settings-dark.recommendations-home .nlogo::first-letter { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nav-menu-btn { background:#111!important; border:1px solid #414141!important; }
+    body.lumae-settings-dark.recommendations-home .nav-menu-btn span { background:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nav-menu-btn::before,
+    body.lumae-settings-dark.recommendations-home .nav-menu-btn::after { background:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nav-rec-search,
+    body.lumae-settings-dark.recommendations-home .nav-rec-search:focus-within { background:#111!important; border-color:#454545!important; color:#fff!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .nav-rec-search input { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .nav-rec-search input::placeholder { color:#bcbcbc!important; }
+    body.lumae-settings-dark.recommendations-home .post-card,
+    body.lumae-settings-dark.recommendations-home .post-card-inner { background:#000!important; border-color:#303030!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card { background:#000!important; border-color:#303030!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner:not(.has-post-background) > .post-head,
+    body.lumae-settings-dark.recommendations-home .post-card-inner:not(.has-post-background) > .post-actions { background:#000!important; border-color:#363636!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-author strong { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-author span,
+    body.lumae-settings-dark.recommendations-home .post-actions > .post-stats { color:#d0d0d0!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu-dot,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background .post-menu-dot { display:grid!important; place-items:center; flex:0 0 36px!important; width:36px!important; height:36px!important; padding:0!important; border:1px solid #666!important; border-radius:50%!important; background:#111!important; color:#fff!important; box-shadow:none!important; font-size:20px!important; line-height:1!important; opacity:1!important; visibility:visible!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu { z-index:30!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background .post-menu-dot { position:absolute!important; top:10px!important; right:10px!important; margin:0!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner:not(.has-post-background) .post-menu-dot { margin-left:auto!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > .post-stats { color:#d0d0d0!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-empty { color:#c7c7c7!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-quick { background:#000!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comments-heading { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-handle { background:#222!important; color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-head,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-actions { background:#000!important; border-color:#363636!important; color:#f5f5f5!important; box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-body { background:#000!important; border-color:#363636!important; color:#fff!important; box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-comments-inline { position:relative!important; z-index:20!important; display:grid!important; grid-template-columns:minmax(0,1fr)!important; grid-template-rows:auto minmax(0,1fr) auto auto!important; gap:0!important; width:auto!important; margin:0 10px 10px!important; padding:8px 12px 12px!important; overflow:visible!important; background:#000!important; border:1px solid #363636!important; border-radius:0 0 14px 14px!important; color:#f5f5f5!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-background::after { display:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-head,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-actions { position:relative!important; z-index:4!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-body,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background > .post-comments-inline { position:relative!important; z-index:20!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-background { z-index:0!important; pointer-events:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background::before { content:none!important; display:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background::after { content:none!important; display:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > button:not(.post-action-follow),
+    body.lumae-settings-dark.recommendations-home .post-action-follow,
+    body.lumae-settings-dark.recommendations-home .post-card-inner.has-post-background .post-actions > button:not(.post-action-follow) { background:#202020!important; border:1px solid #484848!important; color:#f5f5f5!important; box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-actions > button.like,
+    body.lumae-settings-dark.recommendations-home .post-actions > button.like.is-liked { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-reco-strip { background:#111!important; border-color:#363636!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-reco-strip span { color:#c7c7c7!important; }
+    body.lumae-settings-dark.recommendations-home .post-reco-pill { background:#f5f5f5!important; color:#080808!important; }
+    body.lumae-settings-dark.recommendations-home .app-dock-shell .app-dock,
+    body.lumae-settings-dark.recommendations-home .app-dock-shell > .app-dock-avatar { background:#101010!important; border-color:#414141!important; color:#fff!important; box-shadow:none!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal { background:rgba(0,0,0,.86)!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-dialog { background:#090909!important; border:1px solid #424242!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal-head { background:#090909!important; border-color:#333!important; backdrop-filter:none!important; -webkit-backdrop-filter:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal-head span { color:#bdbdbd!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal-head h2 { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-close { background:#171717!important; border-color:#484848!important; color:#fff!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-composer { background:transparent!important; color:#f5f5f5!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postBody,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postTags,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postMediaUrl,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postLibraryTrack,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-topic-picker > button,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-publish-option { background:#141414!important; border:1px solid #414141!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postBody { caret-color:#fff; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postBody::placeholder,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postTags::placeholder,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postMediaUrl::placeholder { color:#b8b8b8!important; opacity:1; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-tag-input { background:#141414!important; border-color:#414141!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-tag-input > span { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-tag-suggestions button,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-file-label { background:#171717!important; border:1px solid #454545!important; color:#f5f5f5!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-file-name,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-bg-file-name,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-background-tools { color:#e5e5e5!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-topic-picker > button strong { color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-topic-menu { background:#111!important; border-color:#454545!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-topic-menu button { background:#111!important; color:#eee!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-topic-menu button:hover,
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-topic-menu button[aria-selected="true"] { background:#eee!important; color:#080808!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postPublishButton { background:#f5f5f5!important; color:#080808!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal #postPublishButton:disabled { background:#555!important; color:#ddd!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-background-preview { background:#111!important; border-color:#414141!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-bg-swatch { border-color:#777!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-bg-swatch.selected { outline:2px solid #fff!important; outline-offset:2px; }
+    body.lumae-settings-dark.recommendations-home .post-composer-modal .post-publish-option input[type="checkbox"] { accent-color:#fff; }
+    body.lumae-settings-dark.recommendations-home .post-menu { background:#101010!important; border-color:#454545!important; color:#fff!important; box-shadow:none!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu button { color:#f5f5f5!important; }
+    body.lumae-settings-dark.recommendations-home .post-menu button:hover { background:#292929!important; color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline { background:#000!important; border-color:#363636!important; color:#f5f5f5!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form { display:grid!important; grid-template-columns:minmax(0,1fr) auto!important; align-items:stretch!important; gap:8px!important; width:100%!important; padding:8px 0 0!important; border-top:1px solid #363636!important; background:#000!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form input { box-sizing:border-box!important; min-width:0!important; width:100%!important; background:#151515!important; border:1px solid #555!important; border-radius:12px!important; color:#fff!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form button { box-sizing:border-box!important; width:auto!important; min-width:0!important; min-height:42px!important; padding:0 13px!important; border-radius:12px!important; white-space:nowrap!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form input::placeholder { color:#bdbdbd!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form button { background:#f5f5f5!important; color:#080808!important; }
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-quick button,
+    body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-tools button { background:#252525!important; color:#fff!important; }
+    body.lumae-settings-dark #section-settings .setting-select-menu { background:#090909!important; border-color:#454545!important; box-shadow:none!important; }
+    body.lumae-settings-dark #section-settings .setting-select-option,
+    body.lumae-settings-dark #section-settings .setting-select-option[aria-selected="true"] { background:#090909!important; color:#f5f5f5!important; }
+    body.lumae-settings-dark #section-settings .setting-select-option:hover,
+    body.lumae-settings-dark #section-settings .setting-select-option:focus-visible { background:#252525!important; color:#fff!important; }
+    body.lumae-settings-dark #section-settings .setting-select-option[aria-selected="true"]::after { color:#fff!important; }
+    body.lumae-settings-dark #section-settings .settings-nav,
+    body.lumae-settings-dark #section-settings .settings-group,
+    body.lumae-settings-dark #section-settings .settings-search { background:#050505!important; border-color:#303030!important; box-shadow:none!important; }
+    body.lumae-settings-dark #section-settings .settings-nav button:not([aria-current="page"]) { background:#111!important; color:#eee!important; }
+    body.lumae-settings-dark #section-settings .settings-nav button[aria-current="page"] { background:#fff!important; color:#000!important; }
+    @media(max-width:760px) {
+      body.lumae-settings-dark.recommendations-home .post-actions { background:#000!important; border-color:#363636!important; }
+      body.lumae-settings-dark.recommendations-home .post-actions > .post-stats { grid-column:1 / -1!important; color:#d0d0d0!important; }
+      body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form { grid-template-columns:minmax(0,1fr) auto!important; }
+      body.lumae-settings-dark.recommendations-home .post-comments-inline .post-comment-form input { min-width:0!important; width:100%!important; }
+    }
     body.lumae-settings-compact .setting-row { min-height:48px; padding-block:8px; }
     body.lumae-settings-compact .settings-group { margin-bottom:10px; }
     body.lumae-settings-no-motion *,body.lumae-settings-no-motion *::before,body.lumae-settings-no-motion *::after { animation:none!important; transition:none!important; }
@@ -20716,8 +20880,8 @@
               <label class="post-file-label" for="postMediaFile">+ Фото до 20</label>
               <input id="postMediaFile" type="file" accept="image/*,video/*" multiple style="display:none"
                 onchange="loadPostMediaFile(event)">
-              <label class="post-file-label post-track-label" for="postTrackFile">+ Трек</label>
-              <input id="postTrackFile" type="file" accept="audio/*" style="display:none"
+              <button class="post-file-label post-track-label" type="button" onclick="document.getElementById('postTrackFile').click()">+ Трек</button>
+              <input id="postTrackFile" type="file" accept="audio/*,.mp3,.m4a,.aac,.wav,.caf,.aiff,.ogg,.oga,.opus,.flac" aria-label="Выбрать аудиофайл" style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0"
                 onchange="loadPostTrackFile(event)">
               <select id="postLibraryTrack" aria-label="Выбрать трек из Музыки" onchange="loadPostLibraryTrack(event)"><option value="">Выбрать из Музыки</option></select>
               <div class="post-file-name post-track-name" id="postTrackName">Можно добавить трек</div>
@@ -21784,6 +21948,27 @@
     let lumaePostPublishing = false;
     let lumaeFeedMode = localStorage.getItem('lumae.posts.feed-mode') || 'for-you';
     let lumaePostsLoading = false;
+    let lumaeRenderedPostsCount = 0;
+    const lumaePostsPageSize = 12;
+    const lumaeViewedPostIds = new Set((() => { try { return usersV8SafeJSONParse(sessionStorage.getItem('lumae.posts.viewed.session'), []); } catch (error) { return []; } })());
+    const lumaeViewTimers = new Map();
+    const lumaePostViewObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const card = entry.target;
+        const postId = String(card.dataset.postId || '');
+        if (!postId || lumaeViewedPostIds.has(postId)) return;
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.6) {
+          clearTimeout(lumaeViewTimers.get(postId));
+          lumaeViewTimers.delete(postId);
+          return;
+        }
+        if (lumaeViewTimers.has(postId)) return;
+        lumaeViewTimers.set(postId, setTimeout(() => {
+          lumaeViewTimers.delete(postId);
+          if (card.isConnected && card.getBoundingClientRect().height && !document.hidden) lumaeRegisterPostView(postId);
+        }, 1200));
+      });
+    }, { threshold: [0.6] }) : null;
     let lumaeLastPostsSignature = null;
     let lumaeNotifications = [];
     let lumaeNotificationUnread = 0;
@@ -21825,6 +22010,13 @@
     const lumaeLocalMediaPrefix = 'lumae-media:';
     const lumaeMaxVideoSeconds = 60 * 60;
     const lumaeMediaObjectUrls = new Map();
+    const lumaeVideoObserver = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        const video = entry.target;
+        if (!entry.isIntersecting) video.pause();
+        else video.play().catch(() => { });
+      });
+    }, { rootMargin: '80px 0px' }) : null;
     try {
       lumaeAuth = JSON.parse(localStorage.getItem('lumae.auth') || 'null');
     } catch (error) {
@@ -22015,13 +22207,17 @@
       const db = await lumaeOpenMediaDB();
       const id = scope + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
       const record = { id, blob: file, type: file.type || '', name: file.name || '', size: file.size || 0, createdAt: new Date().toISOString() };
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction(lumaeMediaStoreName, 'readwrite');
-        tx.objectStore(lumaeMediaStoreName).put(record);
-        tx.oncomplete = resolve;
-        tx.onerror = () => reject(tx.error || new Error('Could not save media'));
-      });
-      db.close();
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(lumaeMediaStoreName, 'readwrite');
+          tx.objectStore(lumaeMediaStoreName).put(record);
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error || new Error('Could not save media'));
+          tx.onabort = () => reject(tx.error || new Error('Could not save media'));
+        });
+      } finally {
+        db.close();
+      }
       return lumaeLocalMediaPrefix + id;
     }
     async function lumaeGetMediaObjectUrl(ref) {
@@ -22068,6 +22264,36 @@
           if (url) element.href = url;
         }).catch(() => { });
       });
+      root.querySelectorAll('.post-card-background video[autoplay][muted]').forEach(video => {
+        if (lumaeVideoObserver) lumaeVideoObserver.observe(video);
+        else video.play().catch(() => { });
+      });
+    }
+    async function lumaePrepareProfileImage(file) {
+      if (!file?.type?.startsWith('image/') || /image\/(gif|svg\+xml)/i.test(file.type)) return file;
+      let objectUrl = '';
+      try {
+        objectUrl = URL.createObjectURL(file);
+        const image = new Image();
+        image.src = objectUrl;
+        await image.decode();
+        const maxDimension = 1920;
+        const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+        if (scale === 1 && file.size <= 2.5 * 1024 * 1024) return file;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if (!context) return file;
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+        if (!blob) return file;
+        return new File([blob], (file.name || 'profile-image').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: Date.now() });
+      } catch (error) {
+        return file;
+      } finally {
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+      }
     }
     function lumaeMediaAttr(source) {
       const safe = usersV8EscapeHTML(source || '');
@@ -22119,23 +22345,25 @@
       return await new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open('PUT', target);
-        request.timeout = 10 * 60 * 1000;
-        Object.entries({ ...authHeaders(), 'Content-Type': file.type || 'application/octet-stream' }).forEach(([key, value]) => request.setRequestHeader(key, value));
+        request.timeout = 45000;
+        const contentType = file.type || (scope.includes('track') ? 'audio/mpeg' : 'application/octet-stream');
+        Object.entries({ ...authHeaders(), 'Content-Type': contentType }).forEach(([key, value]) => request.setRequestHeader(key, value));
         request.upload.onprogress = event => {
           if (event.lengthComputable && onProgress) onProgress(event.loaded / event.total);
         };
-        request.onerror = () => reject(new Error('Соединение прервалось во время загрузки'));
+        request.onerror = () => {
+          lumaeApiUnavailable = true;
+          reject(new Error('Сервер медиа недоступен. Файл остался в черновике.'));
+        };
         request.onabort = () => reject(new Error('Загрузка отменена'));
-        request.ontimeout = () => reject(new Error('Загрузка заняла слишком много времени. Файл остался в черновике.'));
+        request.ontimeout = () => {
+          lumaeApiUnavailable = true;
+          reject(new Error('Загрузка заняла больше 45 секунд. Файл остался в черновике.'));
+        };
         request.onload = () => {
           let data = null;
           try { data = JSON.parse(request.responseText); } catch (error) { }
-          if ([502, 503, 504].includes(request.status) && retryCount < 2) {
-            setTimeout(() => {
-              lumaeUploadFileToServer(file, scope, onProgress, retryCount + 1).then(resolve, reject);
-            }, 1200 * (retryCount + 1));
-            return;
-          }
+          if (request.status >= 500) lumaeApiUnavailable = true;
           if (request.status < 200 || request.status >= 300 || !data?.url) {
             const temporary = [502, 503, 504].includes(request.status)
               ? 'Сервер загрузки временно недоступен. Черновик сохранён; попробуй опубликовать позже.'
@@ -23294,14 +23522,14 @@
     let adminV1TeamView = 'shift';
     const adminV1FeaturedTeam = [
       { id: 'stars-lilya', order: 1, name: 'Лиля', role: 'Главный администратор', department: 'Администрация', level: 15, stars: 5, phone: '+999', handle: 'lilya', avatarImgSrc: 'nbcxudsjhc/лиля.jpg', coverImgSrc: 'fjh498/лиля.jpg', coverImgFallbacks: ['fjh498/Лиля.jpg', 'fjh498/лиля.png', 'fjh498/Лиля.png', 'fjh498/лиля.webp', 'fjh498/Лиля.webp', 'fjh498/lilya.jpg', 'fjh498/lilya.png', 'fjh498/lilya.webp'], shift: true, solved: 2483, responseTime: '2 мин 18 сек', positive: '98%', tenure: '1 год 4 месяца', languages: 'RU / EN / DE', badges: ['Лучший оператор месяца', 'Проверенный сотрудник', 'Основатель'], accent: '#f59e0b' },
-      { id: 'stars-nikita', order: 2, name: 'Никита', role: 'Ученик-иллюстратор', department: 'Обучение', level: 1, stars: 2, phone: '+111', handle: 'nikita', avatarImgSrc: 'nbcxudsjhc/никита.jpg', shift: false, training: true, solved: 4, responseTime: 'обучается', positive: 'новый', tenure: 'старт', languages: 'RU', badges: ['На обучении'], accent: '#22c55e' },
-      { id: 'stars-aliya', order: 3, name: 'Алия', role: 'UI/UX-дизайнер', department: 'Дизайн', level: 5, stars: 4, phone: '+484', handle: 'aliya', avatarImgSrc: 'nbcxudsjhc/Алия.jpg', shift: true, solved: 230, responseTime: '3 мин 04 сек', positive: '96%', tenure: '8 месяцев', languages: 'RU / EN', badges: ['Проверенный сотрудник', 'UI-дизайн'], accent: '#14b8a6' },
-      { id: 'stars-alisa', order: 4, name: 'Алиса', role: '3D-дизайнер', department: 'Дизайн', level: 3, stars: 3, phone: '+735', handle: 'alisa', avatarVidSrc: 'nbcxudsjhc/Алиса.MP4', shift: false, solved: 38, responseTime: '5 мин 20 сек', positive: '94%', tenure: '5 месяцев', languages: 'RU / EN', badges: ['3D-графика', 'Motion'], accent: '#a855f7' },
-      { id: 'stars-alesya', order: 5, name: 'Алеся', role: '2D-дизайнер', department: 'Дизайн', level: 2, stars: 4, phone: '+528', handle: 'alesya', avatarVidSrc: 'nbcxudsjhc/алеся.MP4', shift: true, solved: 0, responseTime: 'по задачам', positive: '99%', tenure: '4 месяца', languages: 'RU', badges: ['Документация', '2D-графика'], accent: '#ec4899' },
-      { id: 'stars-amina', order: 6, name: 'Амина', role: 'Исполнительный директор (COO)', department: 'Управление', level: 17, stars: 6, phone: '842 517 903', handle: 'amina', avatarImgSrc: 'nbcxudsjhc/Амина.jpg', shift: true, solved: 518, responseTime: '1 мин 58 сек', positive: '99%', tenure: '1 год 8 месяцев', languages: 'RU / EN', badges: ['COO', 'Главный специалист'], accent: '#2b4bff' },
-      { id: 'stars-alina', order: 7, name: 'Алина', role: 'Видеомонтажёр', department: 'Контент', level: 2, stars: 5, phone: '+742', handle: 'alina', avatarImgSrc: 'nbcxudsjhc/алина.jpg', shift: true, solved: 12, responseTime: '4 мин 11 сек', positive: '97%', tenure: '6 месяцев', languages: 'RU / EN', badges: ['Видео', 'Проверенный сотрудник'], accent: '#00c896' },
-      { id: 'stars-ilya-mazanik', order: 8, name: 'Мазаник Илья Александрович', role: 'Разработка документации', department: 'Документация', level: 1, stars: 3, handle: 'ilya-mazanik', shift: true, badges: ['Документация'], accent: '#0ea5e9' },
-      { id: 'stars-konstantin-docs', order: 9, name: 'Константин', role: 'Разработка документации', department: 'Документация', level: 1, stars: 3, handle: 'konstantin', shift: true, badges: ['Документация'], accent: '#e879a8' }
+      { id: 'stars-nikita', order: 2, name: 'Никита', role: 'Ученик-иллюстратор', department: 'Обучение', level: 1, stars: 2, phone: '+111', handle: 'nikita', avatarImgSrc: 'nbcxudsjhc/никита.jpg', coverMediaDisabled: true, shift: false, training: true, solved: 4, responseTime: 'обучается', positive: 'новый', tenure: 'старт', languages: 'RU', badges: ['На обучении'], accent: '#22c55e' },
+      { id: 'stars-aliya', order: 3, name: 'Алия', role: 'UI/UX-дизайнер', department: 'Дизайн', level: 5, stars: 4, phone: '+484', handle: 'aliya', avatarImgSrc: 'nbcxudsjhc/Алия.jpg', coverMediaDisabled: true, shift: true, solved: 230, responseTime: '3 мин 04 сек', positive: '96%', tenure: '8 месяцев', languages: 'RU / EN', badges: ['Проверенный сотрудник', 'UI-дизайн'], accent: '#14b8a6' },
+      { id: 'stars-alisa', order: 4, name: 'Алиса', role: '3D-дизайнер', department: 'Дизайн', level: 3, stars: 3, phone: '+735', handle: 'alisa', avatarVidSrc: 'nbcxudsjhc/Алиса.MP4', coverMediaDisabled: true, shift: false, solved: 38, responseTime: '5 мин 20 сек', positive: '94%', tenure: '5 месяцев', languages: 'RU / EN', badges: ['3D-графика', 'Motion'], accent: '#a855f7' },
+      { id: 'stars-alesya', order: 5, name: 'Алеся', role: '2D-дизайнер', department: 'Дизайн', level: 2, stars: 4, phone: '+528', handle: 'alesya', avatarVidSrc: 'nbcxudsjhc/алеся.MP4', coverMediaDisabled: true, shift: true, solved: 0, responseTime: 'по задачам', positive: '99%', tenure: '4 месяца', languages: 'RU', badges: ['Документация', '2D-графика'], accent: '#ec4899' },
+      { id: 'stars-amina', order: 6, name: 'Амина', role: 'Исполнительный директор (COO)', department: 'Управление', level: 17, stars: 6, phone: '842 517 903', handle: 'amina', avatarImgSrc: 'nbcxudsjhc/Амина.jpg', coverMediaDisabled: true, shift: true, solved: 518, responseTime: '1 мин 58 сек', positive: '99%', tenure: '1 год 8 месяцев', languages: 'RU / EN', badges: ['COO', 'Главный специалист'], accent: '#2b4bff' },
+      { id: 'stars-alina', order: 7, name: 'Алина', role: 'Видеомонтажёр', department: 'Контент', level: 2, stars: 5, phone: '+742', handle: 'alina', avatarImgSrc: 'nbcxudsjhc/алина.jpg', coverMediaDisabled: true, shift: true, solved: 12, responseTime: '4 мин 11 сек', positive: '97%', tenure: '6 месяцев', languages: 'RU / EN', badges: ['Видео', 'Проверенный сотрудник'], accent: '#00c896' },
+      { id: 'stars-ilya-mazanik', order: 8, name: 'Мазаник Илья Александрович', role: 'Разработка документации', department: 'Документация', level: 1, stars: 3, coverMediaDisabled: true, shift: true, badges: ['Документация'], accent: '#0ea5e9' },
+      { id: 'stars-konstantin-docs', order: 9, name: 'Константин', role: 'Разработка документации', department: 'Документация', level: 1, stars: 3, handle: 'konstantin', coverMediaDisabled: true, shift: true, badges: ['Документация'], accent: '#e879a8' }
     ];
     const adminV1NameMedia = {
       'лиля': {
@@ -23438,6 +23666,7 @@
       }
     }
     const lumaeProductionApiUrl = 'https://my-site4.onrender.com';
+    let lumaeApiUnavailable = false;
     const apiBaseUrl = (() => {
       if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
         return location.origin;
@@ -23459,7 +23688,7 @@
     })();
 
     function usersV8HasApi() {
-      return (location.protocol === 'http:' || location.protocol === 'https:') && apiBaseUrl !== 'https://YOUR_BACKEND_URL_HERE';
+      return !lumaeApiUnavailable && (location.protocol === 'http:' || location.protocol === 'https:') && apiBaseUrl !== 'https://YOUR_BACKEND_URL_HERE';
     }
     function adminV1ReadOwnerMode() {
       const params = new URLSearchParams(location.search);
@@ -23469,12 +23698,26 @@
     }
     async function usersV8FetchJSON(url, options) {
       const fullUrl = apiBaseUrl && url.startsWith('/') ? apiBaseUrl + url : url;
-      const response = await fetch(fullUrl, {
-        ...options,
-        headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(options?.headers || {}) }
-      });
+      const isPublicPostsRead = (!options?.method || options.method.toUpperCase() === 'GET') && url === '/api/posts';
+      const headers = { ...(isPublicPostsRead ? {} : authHeaders()), ...(options?.headers || {}) };
+      if (options?.body != null && !Object.keys(headers).some(name => name.toLowerCase() === 'content-type')) {
+        headers['Content-Type'] = 'application/json';
+      }
+      const timeoutSignal = AbortSignal.timeout(15000);
+      let response;
+      try {
+        response = await fetch(fullUrl, {
+          ...options,
+          signal: options?.signal ? AbortSignal.any([options.signal, timeoutSignal]) : timeoutSignal,
+          headers
+        });
+      } catch (error) {
+        lumaeApiUnavailable = true;
+        throw error;
+      }
       const data = await response.json().catch(() => null);
       if (!response.ok) {
+        if (response.status >= 500) lumaeApiUnavailable = true;
         const error = new Error(data?.error || 'Request failed');
         error.status = response.status;
         error.code = data?.code || '';
@@ -23652,6 +23895,39 @@
     function postViews(post) {
       return Number(post.views || 0);
     }
+    async function lumaeRegisterPostView(postId) {
+      const key = String(postId || '');
+      if (!key || lumaeViewedPostIds.has(key)) return;
+      lumaeViewedPostIds.add(key);
+      try { sessionStorage.setItem('lumae.posts.viewed.session', JSON.stringify([...lumaeViewedPostIds])); } catch (error) { }
+      let views = 0;
+      if (usersV8HasApi() && !key.startsWith('LOCAL-POST-')) {
+        try {
+          const result = await usersV8FetchJSON(`/api/posts/${encodeURIComponent(key)}/view`, { method: 'POST' });
+          views = Number(result?.views || 0);
+        } catch (error) {
+          lumaeViewedPostIds.delete(key);
+          try { sessionStorage.setItem('lumae.posts.viewed.session', JSON.stringify([...lumaeViewedPostIds])); } catch (storageError) { }
+          return;
+        }
+      } else {
+        const posts = readLocalPosts();
+        let found = false;
+        const updated = posts.map(post => {
+          if (String(post.id) !== key) return post;
+          found = true;
+          views = Number(post.views || 0) + 1;
+          return { ...post, views };
+        });
+        if (!found) return;
+        writeLocalPosts(updated);
+      }
+      const post = lumaePosts.find(item => String(item.id) === key);
+      if (post) post.views = views;
+      const card = document.querySelector(`.post-card[data-post-id="${CSS.escape(key)}"]`);
+      const viewLabel = card?.querySelector('.post-stats > span:last-child');
+      if (viewLabel) viewLabel.textContent = `${views} просмотров`;
+    }
     function registerPostViews(posts) {
       if (!Array.isArray(posts)) return;
       posts.forEach(post => {
@@ -23777,11 +24053,10 @@
       const feed = document.getElementById('postsFeed');
       if (!feed || lumaePostsLoading) return;
       lumaePostsLoading = true;
-      const scrollY = window.scrollY;
       if (!usersV8HasApi()) {
         const posts = readLocalPosts();
         const signature = lumaeRecommendedPosts(posts).map(post => String(post.id)).join('|');
-        if (!silent || signature !== lumaeLastPostsSignature) {
+        if (!silent || (signature !== lumaeLastPostsSignature && !activeCommentsPostId)) {
           renderPosts(posts);
           lumaeLastPostsSignature = signature;
         }
@@ -23795,17 +24070,16 @@
         const localPosts = readLocalPosts().filter(post => !remoteIds.has(String(post.id)));
         const mergedPosts = [...remotePosts, ...localPosts];
         const signature = lumaeRecommendedPosts(mergedPosts).map(post => String(post.id)).join('|');
-        if (!silent || signature !== lumaeLastPostsSignature) {
+        if (!silent || (signature !== lumaeLastPostsSignature && !activeCommentsPostId)) {
           renderPosts(mergedPosts);
           lumaeLastPostsSignature = signature;
         }
         migrateLocalPostsToServer().then(migrated => {
           if (migrated) loadPosts(true);
         }).catch(() => {});
-        if (silent) window.scrollTo(0, scrollY);
       } catch (error) {
         const localPosts = readLocalPosts();
-        if (localPosts.length) renderPosts(localPosts);
+        if (localPosts.length && !activeCommentsPostId) renderPosts(localPosts);
         else if (!lumaePosts.length) {
           const feed = document.getElementById('postsFeed');
           if (feed) feed.innerHTML = '<div class="posts-empty-state"><strong>Не удалось загрузить ленту</strong>Публикации не удалены. Проверь соединение и нажми «Обновить».</div><button type="button" class="post-load-more" onclick="loadPosts()">Обновить ленту</button>';
@@ -23859,7 +24133,9 @@
       }
       postBackgroundFile = file;
       postBackgroundMediaType = file.type.startsWith('video/') ? 'video' : 'image';
+      if (postBackgroundPayload.startsWith('blob:')) URL.revokeObjectURL(postBackgroundPayload);
       postBackgroundPayload = URL.createObjectURL(file);
+      event.target.value = '';
       try { postBackgroundLocalRef = await lumaeSaveMediaFile(file, 'post-background-draft'); }
       catch (error) { postBackgroundLocalRef = ''; }
       const label = document.getElementById('postBackgroundName');
@@ -24015,7 +24291,7 @@
           ${galleryMosaic}
           ${gallery.map((url, index) => {
             const itemType = galleryTypes[index] || detectMediaType(url, index === 0 ? type : '') || 'image';
-            const source = itemType === 'video' ? `<video ${lumaeMediaAttr(url)} controls playsinline preload="none"></video>` : `<img ${lumaeMediaAttr(url)} alt="Фото ${index + 1} публикации" loading="lazy">`;
+            const source = itemType === 'video' ? `<video ${lumaeMediaAttr(url)} controls playsinline preload="metadata"></video>` : `<img ${lumaeMediaAttr(url)} alt="Фото ${index + 1} публикации" loading="lazy">`;
             return `<div class="post-gallery-slide${index === 0 ? ' active' : ''}" data-gallery-index="${index}">${source}</div>`;
           }).join('')}
           ${gallery.length > 1 ? `<button class="post-gallery-overview" type="button" aria-label="Вернуться к миниатюрам" title="Все фото" onclick="showPostGalleryMosaic('${safeId}')"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></button><button class="post-gallery-arrow prev" type="button" aria-label="Предыдущее фото" onclick="shiftPostGallery('${safeId}',-1)">‹</button><button class="post-gallery-arrow next" type="button" aria-label="Следующее фото" onclick="shiftPostGallery('${safeId}',1)">›</button><span class="post-gallery-counter">1 / ${gallery.length}</span>` : ''}
@@ -24035,7 +24311,7 @@
         const recommendationLabel = post.isAd ? 'Реклама' : (lumaeFeedMode === 'following' ? 'Подписки' : lumaeFeedMode === 'popular' ? 'Популярное' : lumaeFeedMode === 'new' ? 'Новое' : `Для вас${post.topic ? ` · ${usersV8EscapeHTML(post.topic)}` : post.trackUrl ? ' · Музыка' : ''}`);
         const body = postBodyWithHashtags(post.body || '');
         const bodyBg = safePostBackground(post.backgroundColor);
-        const backgroundType = post.backgroundMediaType === 'video' ? 'video' : detectMediaType(post.backgroundImage || '', 'image');
+        const backgroundType = post.backgroundMediaType === 'video' ? 'video' : detectMediaType(post.backgroundImage || '', '');
       const hasPostBackground = !!post.backgroundImage || bodyBg !== '#ffffff';
       const cardBackgroundMarkup = post.backgroundImage
         ? `<div class="post-card-background" aria-hidden="true">${backgroundType === 'video' ? `<video ${lumaeMediaAttr(post.backgroundImage)} muted loop autoplay playsinline preload="none"></video>` : `<img ${lumaeMediaAttr(post.backgroundImage)} alt="" loading="lazy">`}</div>`
@@ -24094,7 +24370,34 @@
       if (!batch.length) return;
       feed.insertAdjacentHTML('beforeend', batch.map(postCardHTML).join(''));
       const cards = [...feed.querySelectorAll('.post-card')].slice(-batch.length);
-      cards.forEach(card => lumaeHydrateLocalMedia(card));
+      cards.forEach(card => {
+        lumaeHydrateLocalMedia(card);
+        if (lumaePostViewObserver && !lumaeViewedPostIds.has(String(card.dataset.postId || ''))) lumaePostViewObserver.observe(card);
+      });
+    }
+    function loadMorePosts() {
+      const feed = document.getElementById('postsFeed');
+      if (!feed || lumaeRenderedPostsCount >= lumaePosts.length) return;
+      const nextEnd = Math.min(lumaeRenderedPostsCount + lumaePostsPageSize, lumaePosts.length);
+      appendPostBatch(feed, lumaeRenderedPostsCount, nextEnd);
+      lumaeRenderedPostsCount = nextEnd;
+      updatePostLoadMoreButton(feed);
+    }
+    function updatePostLoadMoreButton(feed) {
+      let button = feed.querySelector('#postFeedLoadMore');
+      if (lumaeRenderedPostsCount >= lumaePosts.length) {
+        button?.remove();
+        return;
+      }
+      if (!button) {
+        button = document.createElement('button');
+        button.id = 'postFeedLoadMore';
+        button.type = 'button';
+        button.className = 'post-load-more';
+        button.textContent = 'Загрузить ещё публикации';
+        button.addEventListener('click', loadMorePosts);
+        feed.appendChild(button);
+      }
     }
     function renderPosts(posts) {
       const feed = document.getElementById('postsFeed');
@@ -24109,6 +24412,7 @@
         return {...post, authorName:profile.name || post.authorName, authorHandle:profile.handle || post.authorHandle, authorProfileId:profile.id || post.authorProfileId, authorAvatar:avatar, authorAvatarType:avatarType};
       });
       lumaePosts = lumaeRecommendedPosts(normalizedPosts);
+      lumaeRenderedPostsCount = 0;
       if (!lumaePosts.length) {
         const empty = lumaeFeedMode === 'following' ? 'Подписок пока нет' : lumaeFeedMode === 'saved' ? 'В избранном пока пусто' : 'Пока нет живых постов';
         const detail = lumaeFeedMode === 'following' ? 'Подпишись на автора в ленте, и его публикации появятся здесь.' : lumaeFeedMode === 'saved' ? 'Нажми на закладку под публикацией, чтобы сохранить её здесь.' : 'Здесь будут только публикации людей: без демо-карточек и пустых заглушек.';
@@ -24118,7 +24422,10 @@
       }
       const feedLabel = { 'for-you': 'Для вас', following: 'Подписки', popular: 'Популярное', new: 'Новое', saved: 'Избранное' }[lumaeFeedMode] || 'Для вас';
       feed.innerHTML = `<div class="post-reco-strip"><div>${feedLabel} <span>${lumaePosts.length} публикаций</span></div><div class="post-reco-pill">live</div></div>`;
-      appendPostBatch(feed, 0, lumaePosts.length);
+      const firstEnd = Math.min(lumaePostsPageSize, lumaePosts.length);
+      appendPostBatch(feed, 0, firstEnd);
+      lumaeRenderedPostsCount = firstEnd;
+      updatePostLoadMoreButton(feed);
       renderPostComments();
     }
     function canDeletePost(post) {
@@ -24140,11 +24447,13 @@
         event.target.value = '';
         return;
       }
+      if (postMediaPayload.startsWith('blob:')) URL.revokeObjectURL(postMediaPayload);
       postMediaFiles = files;
       postMediaLocalTypes = files.map(file => file.type.startsWith('video/') ? 'video' : 'image');
       const file = files[0];
       postMediaFile = file;
       postMediaPayload = URL.createObjectURL(file);
+      event.target.value = '';
       postMediaPayloadType = file.type.startsWith('video/') ? 'video' : 'image';
       const imageCount = files.filter(item => item.type.startsWith('image/')).length;
       const videoCount = files.length - imageCount;
@@ -24175,14 +24484,19 @@
       savePostDraft();
     }
     async function loadPostTrackFile(event) {
-      const file = event.target?.files?.[0];
+      const input = event.target;
+      const file = input?.files?.[0];
       const label = document.getElementById('postTrackName');
       if (!file) return;
-      if (!file.type.startsWith('audio/')) {
+      const extension = String(file.name || '').split('.').pop().toLowerCase();
+      const audioExtensions = new Set(['mp3', 'm4a', 'aac', 'wav', 'caf', 'aiff', 'aif', 'ogg', 'oga', 'opus', 'flac']);
+      if (!file.type.startsWith('audio/') && !audioExtensions.has(extension)) {
         if (label) label.textContent = 'Нужен аудиофайл';
-        event.target.value = '';
+        if (input) input.value = '';
         return;
       }
+      const extensionMime = { mp3:'audio/mpeg', m4a:'audio/mp4', aac:'audio/aac', wav:'audio/wav', caf:'audio/x-caf', aiff:'audio/aiff', aif:'audio/aiff', ogg:'audio/ogg', oga:'audio/ogg', opus:'audio/ogg', flac:'audio/flac' }[extension] || 'audio/mpeg';
+      const audioFile = file.type.startsWith('audio/') ? file : new File([file], file.name || `track.${extension || 'mp3'}`, { type:extensionMime, lastModified:file.lastModified || Date.now() });
       postTrackFile = file;
       postSelectedLibraryTrack = null;
       postTrackArtist = '';
@@ -24191,15 +24505,18 @@
       postTrackArtworkRef = '';
       const librarySelect = document.getElementById('postLibraryTrack');
       if (librarySelect) librarySelect.value = '';
-      postTrackPayload = URL.createObjectURL(file);
-      postTrackName = file.name;
-      if (label) label.textContent = file.name + ' · подготовка…';
+      if (postTrackPayload.startsWith('blob:')) URL.revokeObjectURL(postTrackPayload);
+      postTrackPayload = URL.createObjectURL(audioFile);
+      postTrackFile = audioFile;
+      postTrackName = audioFile.name;
+      if (label) label.textContent = audioFile.name + ' · подготовка…';
       try {
-        postTrackLocalRef = await lumaeSaveMediaFile(file, 'post-track-draft');
+        postTrackLocalRef = await lumaeSaveMediaFile(audioFile, 'post-track-draft');
       } catch (error) {
         postTrackLocalRef = '';
       }
-      if (label) label.textContent = file.name + (postTrackLocalRef ? '' : ' · сохранится при публикации');
+      if (label) label.textContent = audioFile.name + (postTrackLocalRef ? '' : ' · сохранится при публикации');
+      if (input) input.value = '';
       savePostDraft();
     }
     async function createPost() {
@@ -24219,8 +24536,8 @@
       let trackArtist = postTrackArtist;
       let trackArtworkValue = postTrackArtwork;
       let backgroundValue = postBackgroundPayload || postBackgroundLocalRef || '';
-      if (!text && !mediaValue && !postMediaFiles.length && !trackValue) {
-        showToast('Публикация пустая', 'Добавь текст, фото, видео или трек.');
+      if (!text && !mediaValue && !postMediaFiles.length && !trackValue && !backgroundValue) {
+        showToast('Публикация пустая', 'Добавь текст, фото, видео, трек или фон.');
         return;
       }
       if (lumaePostPublishing) return;
@@ -24419,7 +24736,7 @@
           trackArtwork: trackArtworkValue,
           createdAt: new Date().toISOString(),
           likes: 0,
-          views: 1,
+          views: 0,
           comments: []
         });
         if (!writeLocalPosts(posts)) return;
@@ -25078,6 +25395,7 @@
       const lotEffect = lotMeta?.effect || '';
       const lotTier = lotMeta?.tier || '';
       const shortId = isSaved && profile.id ? usersV8ShortProfileId(profile.id) : '';
+      const avatarInitial = usersV8EscapeHTML(profile.letter || profile.name?.[0] || '?');
       const card = document.createElement('div');
       card.className = `usersv8-card ${isSaved ? 'is-saved' : 'is-example'}${lotEffect ? ` lot-${lotEffect}` : ''}${lotTier ? ` lot-tier-${lotTier}` : ''}`;
       let bannerHTML = `<div class="usersv8-card-banner" style="background:${banner};">`;
@@ -25085,8 +25403,8 @@
       else if (profile.bannerImgSrc) bannerHTML += `<img class="usersv8-card-banner-media" ${lumaeMediaAttr(profile.bannerImgSrc)} alt="${name}">`;
       bannerHTML += '</div>';
       let avaHTML = '';
-      if (profile.avaVidSrc) avaHTML = `<video ${lumaeMediaAttr(profile.avaVidSrc)} loop muted autoplay playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;"></video>`;
-      else if (profile.avaImgSrc) avaHTML = `<img ${lumaeMediaAttr(profile.avaImgSrc)} alt="${name}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+      if (profile.avaVidSrc) avaHTML = `<video ${lumaeMediaAttr(profile.avaVidSrc)} data-avatar-fallback="${avatarInitial}" onerror="usersV8ProfileAvatarError(this)" loop muted autoplay playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;"></video>`;
+      else if (profile.avaImgSrc) avaHTML = `<img ${lumaeMediaAttr(profile.avaImgSrc)} data-avatar-fallback="${avatarInitial}" onerror="usersV8ProfileAvatarError(this)" alt="${name}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
       else avaHTML = `<span style="font-family:'Syne',sans-serif;font-size:16px;font-weight:800;">${usersV8EscapeHTML(profile.letter || '?')}</span>`;
       const avaBg = profile.avaImgSrc || profile.avaVidSrc ? '#eee' : ava.bg;
       const avaColor = profile.avaImgSrc || profile.avaVidSrc ? 'transparent' : ava.color;
@@ -25137,6 +25455,13 @@
         });
       }
       return card;
+    }
+    function usersV8ProfileAvatarError(media) {
+      const initial = media?.dataset.avatarFallback || '?';
+      const fallback = document.createElement('span');
+      fallback.textContent = initial;
+      fallback.style.cssText = 'display:grid;place-items:center;width:100%;height:100%;border-radius:inherit;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-weight:800;';
+      media?.replaceWith(fallback);
     }
     function usersV8UpdateHeroStats(totalCount) {
       const total = document.getElementById('usersV8HeroCount');
@@ -25323,14 +25648,26 @@
       }
     }
     async function usersV8LoadBanner(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+      const input = event.target;
+      const selected = input?.files?.[0];
+      if (input) input.value = '';
+      if (!selected) return;
+      if (selected.size > 512 * 1024 * 1024) {
+        alert('Файл больше лимита 512 МБ. Выбери файл поменьше.');
+        return;
+      }
+      if (!selected.type.startsWith('image/') && !selected.type.startsWith('video/')) {
+        alert('Выбери изображение или видео для обложки.');
+        return;
+      }
+      const file = await lumaePrepareProfileImage(selected);
       if (file.type.startsWith('video/') && !(await lumaeValidateVideoDuration(file))) {
         alert('Фоновое видео должно быть до 1 часа.');
         event.target.value = '';
         return;
       }
       try {
+        if (typeof usersV8BannerPayload === 'string' && usersV8BannerPayload.startsWith('blob:')) URL.revokeObjectURL(usersV8BannerPayload);
         usersV8BannerFile = file;
         usersV8BannerPayload = URL.createObjectURL(file);
         usersV8BannerKind = file.type.startsWith('video/') ? 'video' : 'image';
@@ -25340,14 +25677,26 @@
       }
     }
     async function usersV8LoadAva(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+      const input = event.target;
+      const selected = input?.files?.[0];
+      if (input) input.value = '';
+      if (!selected) return;
+      if (selected.size > 512 * 1024 * 1024) {
+        alert('Файл больше лимита 512 МБ. Выбери файл поменьше.');
+        return;
+      }
+      if (!selected.type.startsWith('image/') && !selected.type.startsWith('video/')) {
+        alert('Выбери изображение или видео для аватара.');
+        return;
+      }
+      const file = await lumaePrepareProfileImage(selected);
       if (file.type.startsWith('video/') && !(await lumaeValidateVideoDuration(file))) {
         alert('Видео для аватара должно быть до 1 часа.');
         event.target.value = '';
         return;
       }
       try {
+        if (typeof usersV8AvaPayload === 'string' && usersV8AvaPayload.startsWith('blob:')) URL.revokeObjectURL(usersV8AvaPayload);
         usersV8AvaFile = file;
         usersV8AvaPayload = URL.createObjectURL(file);
         usersV8AvaKind = file.type.startsWith('video/') ? 'video' : 'image';
@@ -25408,6 +25757,9 @@
       if (saveButton) saveButton.textContent = profile ? 'Сохранить изменения' : 'Сохранить профиль';
     }
     function usersV8ResetForm() {
+      [usersV8BannerPayload, usersV8AvaPayload].forEach(source => {
+        if (typeof source === 'string' && source.startsWith('blob:')) URL.revokeObjectURL(source);
+      });
       usersV8EditingId = null;
       usersV8Tags = [];
       usersV8CurrentRarity = 'common';
@@ -25448,6 +25800,9 @@
       const phone = document.getElementById('usersV8Phone');
       const desc = document.getElementById('usersV8Desc');
       const status = document.getElementById('usersV8Status');
+      [usersV8BannerPayload, usersV8AvaPayload].forEach(source => {
+        if (typeof source === 'string' && source.startsWith('blob:')) URL.revokeObjectURL(source);
+      });
       usersV8EditingId = profile.id;
       usersV8Tags = [...(profile.tags || [])];
       usersV8BannerPayload = profile.bannerVidSrc || profile.bannerImgSrc || null;
@@ -25634,10 +25989,26 @@
       let bannerStored = usersV8BannerPayload;
       let avaStored = usersV8AvaPayload;
       try {
-        if (usersV8BannerFile) bannerStored = await lumaeSaveMediaFile(usersV8BannerFile, 'profile-banner');
-        if (usersV8AvaFile) avaStored = await lumaeSaveMediaFile(usersV8AvaFile, 'profile-avatar');
+        const storeProfileMedia = async (file, scope) => {
+          if (usersV8HasApi()) {
+            try { return await lumaeUploadFileToServer(file, scope); }
+            catch (uploadError) {
+              try { return await lumaeSaveMediaFile(file, scope); }
+              catch (storageError) {
+                throw new Error(uploadError.message || storageError.message || 'Не удалось сохранить файл');
+              }
+            }
+          }
+          return await lumaeSaveMediaFile(file, scope);
+        };
+        if (usersV8BannerFile) {
+          bannerStored = await storeProfileMedia(usersV8BannerFile, 'profile-banner');
+        }
+        if (usersV8AvaFile) {
+          avaStored = await storeProfileMedia(usersV8AvaFile, 'profile-avatar');
+        }
       } catch (error) {
-        alert('Не получилось сохранить фото или видео профиля. Проверь, что в браузере осталось место для файлов Lumae.');
+        alert(error.message || 'Не удалось сохранить медиа профиля. Проверь соединение или освободи место в хранилище браузера.');
         return;
       }
       const inventorySnapshot = JSON.stringify(usersV8Inventory);
@@ -25863,15 +26234,7 @@
       return variants;
     }
     function adminV1CoverMediaForPerson(item, profile, name, handle) {
-      const dirs = ['fjh498', 'gfgh483', 'gjgn495'];
-      const imageExts = ['jpg', 'png', 'webp', 'jpeg'];
-      const videoExts = ['mp4', 'MP4'];
-      const variants = adminV1CoverPathVariants(item, profile, name, handle);
-      const build = exts => dirs.flatMap(dir => variants.flatMap(value => exts.map(ext => `${dir}/${value}.${ext}`)));
-      return {
-        images: [...new Set(build(imageExts))],
-        videos: [...new Set(build(videoExts))]
-      };
+      return { images: [], videos: [] };
     }
     function adminV1MediaFallbackAttr(fallbacks = []) {
       const clean = fallbacks.filter(Boolean);
@@ -26421,10 +26784,9 @@
     }, true);
     window.setInterval(() => {
       if (!document.hidden) {
-        loadPosts(true).then(() => { if (activeCommentsPostId) renderPostComments(); });
         lumaeRefreshNotifications(true);
       }
-    }, 30000);
+    }, 60000);
     lumaeMigrateOldInlineMedia().then(() => usersV8RepairOwnProfileMediaOnServer()).catch(() => { });
     document.addEventListener('click', event => {
       closePostMenus();
