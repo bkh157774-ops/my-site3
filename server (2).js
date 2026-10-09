@@ -1,0 +1,1092 @@
+import express from 'express';
+import cors from 'cors';
+import bodyParser from 'body-parser';
+import sqlite3 from 'sqlite3';
+import path from 'path';
+import crypto from 'crypto';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const app = express();
+const PORT = process.env.PORT || 3000;
+const musicSearchCache = new Map();
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const uploadDir = path.join(DATA_DIR, 'uploads');
+const maxUploadBytes = 512 * 1024 * 1024;
+const inlineMediaResponseLimit = 256 * 1024;
+fs.mkdirSync(uploadDir, { recursive: true });
+
+// Middleware
+app.use(cors());
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+app.get('/api/music/search', async (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (!query) return res.json({ results: [] });
+  const searchTerm = query.toLowerCase().includes('фонк')
+    ? query.replace(/фонк/gi, 'phonk')
+    : query;
+  const cacheKey = searchTerm.normalize('NFKC').toLocaleLowerCase();
+  const cached = musicSearchCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < 5 * 60 * 1000) return res.json({ results: cached.results });
+  try {
+    const url = new URL('https://api.audius.co/v1/tracks/search');
+    url.search = new URLSearchParams({ query: searchTerm, limit: '50', app_name: 'lumae' }).toString();
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(12000) });
+    if (!upstream.ok) throw new Error(`Audius search returned ${upstream.status}`);
+    const data = await upstream.json();
+    const results = (Array.isArray(data.data) ? data.data : [])
+      .filter(track => track.id && track.is_streamable !== false && !track.is_stream_gated && track.access?.stream !== false)
+      .map(track => ({
+        trackId: track.id,
+        trackName: track.title,
+        artistName: track.user?.name || 'Audius',
+        collectionName: 'Audius',
+        duration: Number(track.duration) || 0,
+        artworkUrl: track.artwork?.['480x480'] || track.artwork?.['1000x1000'] || null,
+        streamUrl: `https://api.audius.co/v1/tracks/${encodeURIComponent(track.id)}/stream?app_name=lumae`
+      }));
+    musicSearchCache.set(cacheKey, { time: Date.now(), results });
+    if (musicSearchCache.size > 100) musicSearchCache.delete(musicSearchCache.keys().next().value);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json({ results });
+  } catch (error) {
+    console.warn('Audius music search unavailable:', error.message);
+    res.status(502).json({ error: 'Поиск музыки Audius временно недоступен' });
+  }
+});
+app.use('/uploads', express.static(uploadDir, { maxAge: '1y', immutable: true }));
+// Не отдаём наружу базу, логи и служебные файлы
+app.use((req, res, next) => {
+  if (/\.(db|sqlite|log)$|(^|\/)(server\.js|package(-lock)?\.json|render\.yaml|netlify\.toml|\.gitignore)$|\.md$/i.test(req.path)) {
+    return res.status(404).end();
+  }
+  next();
+});
+app.use(express.static(__dirname));
+
+// Database setup
+const db = new sqlite3.Database(path.join(DATA_DIR, 'profiles.db'), (err) => {
+  if (err) {
+    console.error('Database error:', err);
+  } else {
+    console.log('Connected to SQLite database');
+    initDB();
+  }
+});
+
+function initDB() {
+  db.serialize(() => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profileId TEXT,
+        handle TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT,
+        game TEXT,
+        desc TEXT,
+        status TEXT,
+        tags TEXT,
+        rarity TEXT,
+        banner TEXT,
+        avatar TEXT,
+        fullProfile TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    addColumn('profiles', 'profileId TEXT');
+    addColumn('profiles', 'phone TEXT');
+    addColumn('profiles', 'desc TEXT');
+    addColumn('profiles', 'fullProfile TEXT');
+    db.run(`
+      CREATE TABLE IF NOT EXISTS admin_applications (
+        id TEXT PRIMARY KEY,
+        profileId TEXT,
+        name TEXT NOT NULL,
+        handle TEXT NOT NULL,
+        role TEXT,
+        salary TEXT,
+        reason TEXT,
+        status TEXT DEFAULT 'pending',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        passwordHash TEXT NOT NULL,
+        name TEXT,
+        handle TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS sessions (
+        token TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS music_tracks (
+        id TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        title TEXT NOT NULL,
+        artist TEXT NOT NULL DEFAULT '',
+        album TEXT NOT NULL DEFAULT 'Мои треки',
+        genre TEXT NOT NULL DEFAULT 'поп',
+        duration INTEGER NOT NULL DEFAULT 0,
+        audioUrl TEXT NOT NULL,
+        artwork TEXT NOT NULL DEFAULT '',
+        fileName TEXT NOT NULL DEFAULT '',
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id, userId)
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS posts (
+        id TEXT PRIMARY KEY,
+        userId TEXT,
+        authorName TEXT NOT NULL,
+        authorHandle TEXT,
+        authorAvatar TEXT,
+        authorProfileId TEXT,
+        body TEXT NOT NULL,
+        mediaUrl TEXT,
+        mediaType TEXT,
+        mediaGallery TEXT DEFAULT '[]',
+        topic TEXT DEFAULT '',
+        allowDownload INTEGER DEFAULT 1,
+        allowSaveToNotes INTEGER DEFAULT 1,
+        isAd INTEGER DEFAULT 0,
+        backgroundColor TEXT DEFAULT '#ffffff',
+        backgroundImage TEXT DEFAULT '',
+        trackUrl TEXT,
+        trackName TEXT,
+        trackArtist TEXT DEFAULT '',
+        trackArtwork TEXT DEFAULT '',
+        views INTEGER DEFAULT 0,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    addColumn('posts', 'authorAvatar TEXT');
+    addColumn('posts', 'authorProfileId TEXT');
+    addColumn('posts', 'trackUrl TEXT');
+    addColumn('posts', 'trackName TEXT');
+    addColumn('posts', "trackArtist TEXT DEFAULT ''");
+    addColumn('posts', "trackArtwork TEXT DEFAULT ''");
+    addColumn('posts', 'views INTEGER DEFAULT 0');
+    addColumn('posts', "mediaGallery TEXT DEFAULT '[]'");
+    addColumn('posts', "topic TEXT DEFAULT ''");
+    addColumn('posts', 'allowDownload INTEGER DEFAULT 1');
+    addColumn('posts', 'allowSaveToNotes INTEGER DEFAULT 1');
+    addColumn('posts', 'isAd INTEGER DEFAULT 0');
+    addColumn('posts', "backgroundColor TEXT DEFAULT '#ffffff'");
+    addColumn('posts', "backgroundImage TEXT DEFAULT ''");
+    db.run(`
+      CREATE TABLE IF NOT EXISTS post_likes (
+        postId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (postId, userId)
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS post_dislikes (
+        postId TEXT NOT NULL,
+        userId TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (postId, userId)
+      )
+    `);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS post_comments (
+        id TEXT PRIMARY KEY,
+        postId TEXT NOT NULL,
+        userId TEXT,
+        authorName TEXT NOT NULL,
+        authorHandle TEXT,
+        authorAvatar TEXT,
+        body TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    addColumn('post_comments', 'authorHandle TEXT');
+    addColumn('post_comments', 'authorAvatar TEXT');
+    db.run(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        userId TEXT NOT NULL,
+        type TEXT NOT NULL,
+        postId TEXT NOT NULL,
+        actorName TEXT NOT NULL,
+        actorHandle TEXT,
+        body TEXT NOT NULL,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        readAt DATETIME
+      )
+    `);
+    db.run(
+      `DELETE FROM posts
+       WHERE id = 'demo-post'
+          OR (authorName = 'MuMu Player' AND body LIKE 'Пример поста%')`
+    );
+  });
+}
+
+function addColumn(table, definition) {
+  db.run(`ALTER TABLE ${table} ADD COLUMN ${definition}`, (err) => {
+    if (err && !String(err.message).includes('duplicate column name')) {
+      console.error(`Migration error for ${table}.${definition}:`, err.message);
+    }
+  });
+}
+
+function publicMediaValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw || /^(lumae-media:|blob:)/i.test(raw)) return null;
+  if (/^data:/i.test(raw) && raw.length > inlineMediaResponseLimit) return null;
+  return raw;
+}
+
+function uploadExtension(mime, name = '') {
+  const byMime = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+    'image/gif': '.gif',
+    'video/mp4': '.mp4',
+    'video/webm': '.webm',
+    'video/ogg': '.ogv',
+    'audio/mpeg': '.mp3',
+    'audio/mp3': '.mp3',
+    'audio/mp4': '.m4a',
+    'audio/wav': '.wav',
+    'audio/ogg': '.ogg',
+    'audio/aac': '.aac',
+    'audio/flac': '.flac'
+  };
+  const ext = path.extname(String(name || '')).toLowerCase();
+  return byMime[String(mime || '').toLowerCase()] || (ext && ext.length <= 8 ? ext : '.bin');
+}
+
+function parseDataUrl(value) {
+  const match = String(value || '').match(/^data:([^;,]+);base64,([\s\S]+)$/i);
+  if (!match) return null;
+  const mime = match[1].toLowerCase();
+  if (!/^(image|video|audio)\//.test(mime)) return null;
+  const buffer = Buffer.from(match[2].replace(/\s/g, ''), 'base64');
+  return { mime, buffer };
+}
+
+async function saveDataUrlMedia(value, scope = 'media', name = '') {
+  const parsed = parseDataUrl(value);
+  if (!parsed) return publicMediaValue(value) || '';
+  if (parsed.buffer.length > maxUploadBytes) {
+    const error = new Error('Media file is too large');
+    error.status = 413;
+    throw error;
+  }
+  const safeScope = String(scope || 'media').replace(/[^a-z0-9_-]/gi, '').slice(0, 28) || 'media';
+  const filename = `${safeScope}-${Date.now().toString(36)}-${crypto.randomBytes(5).toString('hex')}${uploadExtension(parsed.mime, name)}`;
+  await fs.promises.writeFile(path.join(uploadDir, filename), parsed.buffer);
+  return `/uploads/${filename}`;
+}
+
+async function mediaValueForStorage(value, scope = 'media', name = '') {
+  const raw = String(value || '').trim();
+  if (!raw || /^(lumae-media:|blob:)/i.test(raw)) return '';
+  if (/^data:/i.test(raw)) return saveDataUrlMedia(raw, scope, name);
+  return raw;
+}
+
+function rowToProfile(row) {
+  if (!row) return null;
+  try {
+    const full = row.fullProfile ? JSON.parse(row.fullProfile) : {};
+    return {
+      ...full,
+      id: full.id || row.profileId || `DB-${row.id}`,
+      handle: full.handle || row.handle,
+      name: full.name || row.name,
+      phone: full.phone || row.phone || '',
+      desc: full.desc || row.desc || row.game || '',
+      status: full.status || row.status || '',
+      tags: Array.isArray(full.tags) ? full.tags : JSON.parse(row.tags || '[]'),
+      rarity: full.rarity || row.rarity || 'common',
+      bannerImgSrc: publicMediaValue(full.bannerImgSrc || row.banner),
+      bannerVidSrc: publicMediaValue(full.bannerVidSrc),
+      avaImgSrc: publicMediaValue(full.avaImgSrc || row.avatar),
+      avaVidSrc: publicMediaValue(full.avaVidSrc),
+      createdAt: full.createdAt || row.createdAt
+    };
+  } catch (error) {
+    return {
+      id: row.profileId || `DB-${row.id}`,
+      handle: row.handle,
+      name: row.name,
+      phone: row.phone || '',
+      desc: row.desc || row.game || '',
+      status: row.status || '',
+      tags: [],
+      rarity: row.rarity || 'common',
+      bannerImgSrc: publicMediaValue(row.banner),
+      avaImgSrc: publicMediaValue(row.avatar),
+      createdAt: row.createdAt
+    };
+  }
+}
+
+function normalizeApplication(row) {
+  return {
+    id: row.id,
+    profileId: row.profileId || '',
+    name: row.name,
+    handle: row.handle,
+    role: row.role || 'Support',
+    salary: row.salary || 'Волонтёрство',
+    reason: row.reason || '',
+    status: row.status || 'pending',
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+function createId(prefix) {
+  return `${prefix}-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+}
+
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 32, 'sha256').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, stored) {
+  const [salt, hash] = String(stored || '').split(':');
+  if (!salt || !hash) return false;
+  const next = crypto.pbkdf2Sync(String(password), salt, 120000, 32, 'sha256').toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(next, 'hex'));
+}
+
+function publicUser(row) {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name || row.email.split('@')[0],
+    handle: row.handle || row.email.split('@')[0]
+  };
+}
+
+function userToProfile(row) {
+  const user = publicUser(row);
+  return {
+    id: user.id,
+    handle: user.handle,
+    name: user.name,
+    phone: '',
+    desc: '',
+    status: 'Lumae account',
+    tags: [],
+    rarity: 'common',
+    bannerImgSrc: null,
+    avaImgSrc: null,
+    createdAt: row.createdAt
+  };
+}
+
+function mergeProfilesAndUsers(profileRows = [], userRows = []) {
+  const profiles = profileRows.map(rowToProfile).filter(Boolean);
+  const seen = new Set();
+  profiles.forEach((profile) => {
+    if (profile.id) seen.add(`id:${String(profile.id).toLowerCase()}`);
+    if (profile.handle) seen.add(`handle:${String(profile.handle).toLowerCase()}`);
+  });
+
+  userRows.forEach((row) => {
+    const profile = userToProfile(row);
+    const keys = [
+      `id:${String(profile.id || '').toLowerCase()}`,
+      `handle:${String(profile.handle || '').toLowerCase()}`
+    ];
+    if (keys.some((key) => seen.has(key))) return;
+    keys.forEach((key) => seen.add(key));
+    profiles.push(profile);
+  });
+
+  return profiles.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function authToken(req) {
+  const header = String(req.headers.authorization || '');
+  return header.startsWith('Bearer ') ? header.slice(7) : '';
+}
+
+function getAuthUser(req, callback) {
+  const token = authToken(req);
+  if (!token) return callback(null, null);
+  db.get(
+    `SELECT users.* FROM sessions JOIN users ON users.id = sessions.userId WHERE sessions.token = ?`,
+    [token],
+    callback
+  );
+}
+
+function requireAuth(req, res, callback) {
+  getAuthUser(req, (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!user) return res.status(401).json({ error: 'Sign in required' });
+    callback(user);
+  });
+}
+
+function optionalAuth(req, res, callback) {
+  getAuthUser(req, (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    callback(user || null);
+  });
+}
+
+app.get('/api/music/tracks', (req, res) => {
+  requireAuth(req, res, user => {
+    db.all('SELECT id,title,artist,album,genre,duration AS dur,audioUrl,artwork,fileName FROM music_tracks WHERE userId = ? ORDER BY createdAt DESC', [user.id], (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Не удалось загрузить музыку' });
+      res.json({ tracks: rows.map(row => ({ ...row, id: String(row.id), mine: true, remote: true })) });
+    });
+  });
+});
+
+app.post('/api/music/tracks', (req, res) => {
+  requireAuth(req, res, user => {
+    const track = req.body || {};
+    const id = String(track.id || '').slice(0, 80);
+    const title = String(track.title || '').trim().slice(0, 160);
+    const audioUrl = String(track.audioUrl || '').trim();
+    if (!id || !title || !/^https:\/\/[^/]+\/uploads\/|^\/uploads\//i.test(audioUrl)) {
+      return res.status(400).json({ error: 'Нужны название и загруженный аудиофайл' });
+    }
+    db.run(`INSERT INTO music_tracks (id,userId,title,artist,album,genre,duration,audioUrl,artwork,fileName)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id,userId) DO UPDATE SET title=excluded.title,artist=excluded.artist,duration=excluded.duration,audioUrl=excluded.audioUrl,artwork=excluded.artwork,fileName=excluded.fileName`,
+    [id,user.id,title,String(track.artist || '').trim().slice(0,120),'Мои треки','поп',Math.max(0,Math.floor(Number(track.dur) || 0)),audioUrl,String(track.artwork || '').slice(0,1000),String(track.fileName || '').slice(0,255)],
+    err => {
+      if (err) return res.status(500).json({ error: 'Не удалось сохранить трек в аккаунте' });
+      res.status(201).json({ success: true, track: { ...track, id, title, audioUrl, mine: true, remote: true } });
+    });
+  });
+});
+
+app.delete('/api/music/tracks/:id', (req, res) => {
+  requireAuth(req, res, user => {
+    db.run('DELETE FROM music_tracks WHERE id = ? AND userId = ?', [String(req.params.id), user.id], function (err) {
+      if (err) return res.status(500).json({ error: 'Не удалось удалить трек' });
+      res.json({ success: true, deleted: this.changes > 0 });
+    });
+  });
+});
+
+function normalizePost(row, comments = []) {
+  return {
+    id: row.id,
+    userId: row.userId || '',
+    authorName: row.authorName,
+    authorHandle: row.authorHandle || '',
+    authorAvatar: publicMediaValue(row.authorAvatar) || '',
+    authorProfileId: row.authorProfileId || '',
+    body: row.body,
+    mediaUrl: publicMediaValue(row.mediaUrl) || '',
+    mediaType: row.mediaType || '',
+    mediaGallery: (() => { try { return JSON.parse(row.mediaGallery || '[]').map(publicMediaValue).filter(Boolean); } catch { return []; } })(),
+    topic: row.topic || '',
+    allowDownload: Number(row.allowDownload ?? 1) !== 0,
+    allowSaveToNotes: Number(row.allowSaveToNotes ?? 1) !== 0,
+    isAd: Number(row.isAd || 0) !== 0,
+    backgroundColor: row.backgroundColor || '#ffffff',
+    backgroundImage: publicMediaValue(row.backgroundImage) || '',
+    dislikes: Number(row.dislikes || 0),
+    dislikedByMe: Boolean(Number(row.dislikedByMe || 0)),
+    trackUrl: publicMediaValue(row.trackUrl) || '',
+    trackName: row.trackName || '',
+    trackArtist: row.trackArtist || '',
+    trackArtwork: publicMediaValue(row.trackArtwork) || '',
+    createdAt: row.createdAt,
+    likes: Number(row.likes || 0),
+    likedByMe: Boolean(Number(row.likedByMe || 0)),
+    views: Number(row.views || 0),
+    comments
+  };
+}
+
+function isDemoPost(row) {
+  return row?.id === 'demo-post' || (row?.authorName === 'MuMu Player' && String(row?.body || '').startsWith('Пример поста'));
+}
+
+// API Routes
+
+app.post('/api/auth/register', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  const name = String(req.body.name || email.split('@')[0] || 'Lumae').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: 'Email is invalid' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+  const user = {
+    id: createId('USR'),
+    email,
+    passwordHash: hashPassword(password),
+    name,
+    handle: email.split('@')[0].replace(/[^a-z0-9_]/gi, '').slice(0, 24) || 'lumae'
+  };
+  db.run(
+    'INSERT INTO users (id, email, passwordHash, name, handle) VALUES (?, ?, ?, ?, ?)',
+    [user.id, user.email, user.passwordHash, user.name, user.handle],
+    (err) => {
+      if (err) {
+        if (String(err.message).includes('UNIQUE')) return res.status(409).json({ error: 'Email already exists' });
+        return res.status(500).json({ error: err.message });
+      }
+      const token = createId('SES');
+      db.run('INSERT INTO sessions (token, userId) VALUES (?, ?)', [token, user.id], (sessionErr) => {
+        if (sessionErr) return res.status(500).json({ error: sessionErr.message });
+        res.json({ token, user: publicUser(user) });
+      });
+    }
+  );
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const password = String(req.body.password || '');
+  db.get('SELECT * FROM users WHERE email = ?', [email], (err, user) => {
+    if (err) return res.status(500).json({ error: err.message });
+    if (!user || !verifyPassword(password, user.passwordHash)) {
+      return res.status(401).json({ error: 'Wrong email or password' });
+    }
+    const token = createId('SES');
+    db.run('INSERT INTO sessions (token, userId) VALUES (?, ?)', [token, user.id], (sessionErr) => {
+      if (sessionErr) return res.status(500).json({ error: sessionErr.message });
+      res.json({ token, user: publicUser(user) });
+    });
+  });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  requireAuth(req, res, (user) => res.json({ user: publicUser(user) }));
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const token = authToken(req);
+  if (!token) return res.json({ success: true });
+  db.run('DELETE FROM sessions WHERE token = ?', [token], () => res.json({ success: true }));
+});
+
+app.post('/api/uploads', async (req, res) => {
+  try {
+    const dataUrl = String(req.body.dataUrl || '');
+    const scope = String(req.body.scope || 'media');
+    const name = String(req.body.name || 'media');
+    const url = await saveDataUrlMedia(dataUrl, scope, name);
+    if (!url) return res.status(400).json({ error: 'Valid media data is required' });
+    res.json({ success: true, url });
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || 'Upload failed' });
+  }
+});
+
+app.put('/api/uploads/raw', (req, res) => {
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (!/^(image|video|audio)\//.test(mime)) {
+    return res.status(415).json({ error: 'Unsupported media type' });
+  }
+
+  const scope = String(req.query.scope || 'media').replace(/[^a-z0-9_-]/gi, '').slice(0, 28) || 'media';
+  const name = String(req.query.name || 'media');
+  const filename = `${scope}-${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}${uploadExtension(mime, name)}`;
+  const tempPath = path.join(uploadDir, `${filename}.part`);
+  const finalPath = path.join(uploadDir, filename);
+  const output = fs.createWriteStream(tempPath, { flags: 'wx' });
+  let size = 0;
+  let settled = false;
+  let finished = false;
+
+  const cleanup = async () => {
+    if (!output.closed) {
+      await new Promise(resolve => output.once('close', resolve));
+    }
+    await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+  };
+  const fail = async (status, message) => {
+    if (settled) return;
+    settled = true;
+    req.unpipe(output);
+    req.resume();
+    output.destroy();
+    await cleanup();
+    if (!res.headersSent) res.status(status).json({ error: message });
+  };
+
+  req.on('data', chunk => {
+    if (settled) return;
+    size += chunk.length;
+    if (size > maxUploadBytes) fail(413, 'Видео или файл больше лимита 512 МБ. Пост и черновик не сохранены на сервере.');
+  });
+  req.on('aborted', () => {
+    if (settled) return;
+    settled = true;
+    req.unpipe(output);
+    output.destroy();
+    cleanup();
+  });
+  output.on('error', error => fail(500, error.message || 'Не удалось сохранить файл'));
+  output.on('finish', () => { finished = true; });
+  output.on('close', async () => {
+    if (settled || !finished) return;
+    if (!size) return fail(400, 'Пустой файл');
+    settled = true;
+    try {
+      await fs.promises.rename(tempPath, finalPath);
+      res.json({ success: true, url: `/uploads/${filename}`, size });
+    } catch (error) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+      if (!res.headersSent) res.status(500).json({ error: 'Не удалось завершить сохранение файла' });
+    }
+  });
+  req.pipe(output);
+});
+
+// GET all profiles
+app.get('/api/profiles', (req, res) => {
+  db.all('SELECT * FROM profiles ORDER BY createdAt DESC', (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    db.all('SELECT * FROM users ORDER BY createdAt DESC', (usersErr, users) => {
+      if (usersErr) return res.status(500).json({ error: usersErr.message });
+      res.json(mergeProfilesAndUsers(rows, users));
+    });
+  });
+});
+
+// GET profile by handle
+app.get('/api/profiles/:handle', (req, res) => {
+  const handle = String(req.params.handle || '').replace(/^@/, '').trim();
+  db.get('SELECT * FROM profiles WHERE lower(handle) = lower(?)', [handle], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (row) {
+      return res.json(rowToProfile(row));
+    }
+    db.get('SELECT * FROM users WHERE lower(handle) = lower(?)', [handle], (userErr, user) => {
+      if (userErr) return res.status(500).json({ error: userErr.message });
+      if (!user) return res.status(404).json({ error: 'Profile not found' });
+      res.json(userToProfile(user));
+    });
+  });
+});
+
+// POST create/update profile
+app.post('/api/profiles', async (req, res) => {
+  try {
+    const source = req.body.profile && typeof req.body.profile === 'object' ? req.body.profile : req.body;
+    const safeProfile = {
+      ...source,
+      bannerImgSrc: await mediaValueForStorage(source.bannerImgSrc || source.banner, 'profile-banner', source.bannerName),
+      bannerVidSrc: await mediaValueForStorage(source.bannerVidSrc, 'profile-banner', source.bannerName),
+      avaImgSrc: await mediaValueForStorage(source.avaImgSrc || source.avatar, 'profile-avatar', source.avatarName),
+      avaVidSrc: await mediaValueForStorage(source.avaVidSrc, 'profile-avatar', source.avatarName)
+    };
+    const { id, handle, name, phone, desc, game, status, tags, rarity, bannerImgSrc, avaImgSrc } = safeProfile;
+
+    if (!handle || !name) {
+      return res.status(400).json({ error: 'Handle and name are required' });
+    }
+
+    const tagsJson = JSON.stringify(tags || []);
+    const fullProfile = JSON.stringify(safeProfile);
+
+    db.run(
+      `INSERT INTO profiles (profileId, handle, name, phone, game, desc, status, tags, rarity, banner, avatar, fullProfile)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(handle) DO UPDATE SET
+        profileId=excluded.profileId,
+        name=excluded.name,
+        phone=excluded.phone,
+        game=excluded.game,
+        desc=excluded.desc,
+        status=excluded.status,
+        tags=excluded.tags,
+        rarity=excluded.rarity,
+        banner=excluded.banner,
+        avatar=excluded.avatar,
+        fullProfile=excluded.fullProfile,
+        updatedAt=CURRENT_TIMESTAMP`,
+      [id || '', handle, name, phone || '', game || desc || '', desc || game || '', status || '', tagsJson, rarity || 'common', bannerImgSrc || '', avaImgSrc || '', fullProfile],
+      function(err) {
+        if (err) {
+          res.status(500).json({ error: err.message });
+        } else {
+          res.json({
+            success: true,
+            id: this.lastID,
+            message: 'Profile saved successfully'
+          });
+        }
+      }
+    );
+  } catch (error) {
+    res.status(error.status || 500).json({ error: error.message || 'Profile save failed' });
+  }
+});
+
+app.get('/api/admin/applications', (req, res) => {
+  const isOwner = req.query.owner === '1';
+  const profileId = String(req.query.profileId || '');
+  const sql = isOwner
+    ? 'SELECT * FROM admin_applications ORDER BY createdAt DESC'
+    : 'SELECT * FROM admin_applications WHERE profileId = ? ORDER BY createdAt DESC';
+  const params = isOwner ? [] : [profileId];
+  db.all(sql, params, (err, rows) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.json(rows.map(normalizeApplication));
+    }
+  });
+});
+
+app.post('/api/admin/applications', (req, res) => {
+  const { id, profileId, name, handle, role, salary, reason } = req.body;
+  if (!profileId || !name || !handle) {
+    return res.status(400).json({ error: 'Profile, name and handle are required' });
+  }
+  db.get(
+    'SELECT * FROM admin_applications WHERE profileId = ? AND status IN ("pending", "accepted")',
+    [profileId],
+    (findErr, existing) => {
+      if (findErr) return res.status(500).json({ error: findErr.message });
+      if (existing) return res.status(409).json({ error: 'Application already exists', application: normalizeApplication(existing) });
+      const requestId = id || `ADM-${Date.now().toString(36).toUpperCase()}`;
+      db.run(
+        `INSERT INTO admin_applications (id, profileId, name, handle, role, salary, reason, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
+        [requestId, profileId, name, handle, role || 'Support', salary || 'Волонтёрство', reason || ''],
+        (err) => {
+          if (err) {
+            res.status(500).json({ error: err.message });
+          } else {
+            res.json({ success: true, id: requestId });
+          }
+        }
+      );
+    }
+  );
+});
+
+app.post('/api/admin/applications/:id/:decision', (req, res) => {
+  const status = req.params.decision === 'accept' ? 'accepted' : req.params.decision === 'reject' ? 'rejected' : '';
+  if (!status) return res.status(400).json({ error: 'Decision must be accept or reject' });
+  db.run(
+    'UPDATE admin_applications SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?',
+    [status, req.params.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+      } else if (!this.changes) {
+        res.status(404).json({ error: 'Application not found' });
+      } else {
+        res.json({ success: true, status });
+      }
+    }
+  );
+});
+
+app.get('/api/posts', (req, res) => {
+  getAuthUser(req, (authErr, user) => {
+    if (authErr) return res.status(500).json({ error: authErr.message });
+    db.all(
+      `SELECT
+        posts.id,
+        posts.userId,
+        posts.authorName,
+        posts.authorHandle,
+        CASE WHEN posts.authorAvatar LIKE 'data:%' AND length(posts.authorAvatar) > ? THEN '' ELSE posts.authorAvatar END AS authorAvatar,
+        posts.authorProfileId,
+        posts.body,
+        CASE WHEN posts.mediaUrl LIKE 'data:%' AND length(posts.mediaUrl) > ? THEN '' ELSE posts.mediaUrl END AS mediaUrl,
+        posts.mediaType,
+        posts.mediaGallery,
+        posts.topic,
+        posts.allowDownload,
+        posts.allowSaveToNotes,
+        posts.isAd,
+        posts.backgroundColor,
+        CASE WHEN posts.backgroundImage LIKE 'data:%' AND length(posts.backgroundImage) > ? THEN '' ELSE posts.backgroundImage END AS backgroundImage,
+        CASE WHEN posts.trackUrl LIKE 'data:%' AND length(posts.trackUrl) > ? THEN '' ELSE posts.trackUrl END AS trackUrl,
+        posts.trackName,
+        posts.trackArtist,
+        CASE WHEN posts.trackArtwork LIKE 'data:%' AND length(posts.trackArtwork) > ? THEN '' ELSE posts.trackArtwork END AS trackArtwork,
+        posts.views,
+        posts.createdAt,
+        COUNT(DISTINCT post_likes.userId) AS likes,
+        MAX(CASE WHEN post_likes.userId = ? THEN 1 ELSE 0 END) AS likedByMe,
+        COUNT(DISTINCT post_dislikes.userId) AS dislikes,
+        MAX(CASE WHEN post_dislikes.userId = ? THEN 1 ELSE 0 END) AS dislikedByMe
+     FROM posts
+     LEFT JOIN post_likes ON post_likes.postId = posts.id
+     LEFT JOIN post_dislikes ON post_dislikes.postId = posts.id
+     GROUP BY posts.id
+     ORDER BY posts.createdAt DESC`,
+      [inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, inlineMediaResponseLimit, user?.id || '', user?.id || ''],
+      (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.all(
+          `SELECT id, postId, userId, authorName, authorHandle,
+            CASE WHEN authorAvatar LIKE 'data:%' AND length(authorAvatar) > ? THEN '' ELSE authorAvatar END AS authorAvatar,
+            body, createdAt
+           FROM post_comments
+           ORDER BY createdAt ASC`,
+          [inlineMediaResponseLimit],
+          (commentsErr, comments) => {
+          if (commentsErr) return res.status(500).json({ error: commentsErr.message });
+          const byPost = comments.reduce((map, item) => {
+            if (!map[item.postId]) map[item.postId] = [];
+            map[item.postId].push({
+              id: item.id,
+              authorName: item.authorName,
+              authorHandle: item.authorHandle || '',
+              authorAvatar: publicMediaValue(item.authorAvatar) || '',
+              body: item.body,
+              createdAt: item.createdAt
+            });
+            return map;
+          }, {});
+          res.json(rows.filter(row => !isDemoPost(row)).map(row => normalizePost(row, byPost[row.id] || [])));
+        });
+      }
+    );
+  });
+});
+
+app.post('/api/posts', (req, res) => {
+  optionalAuth(req, res, (user) => {
+    const body = String(req.body.body || '').trim();
+    const mediaUrl = String(req.body.mediaUrl || '').trim();
+    const galleryValues = Array.isArray(req.body.mediaGallery) ? req.body.mediaGallery.slice(0, 20).map(value => String(value || '').trim()).filter(Boolean) : [];
+    const mediaGallery = JSON.stringify(galleryValues);
+    const normalizedMediaType = String(req.body.mediaType || (/\.(mp4|webm|ogv|ogg|mov|m4v|mkv|3gp|mpeg|mpg|avi)(\?|$)/i.test(mediaUrl) ? 'video' : ''));
+    const topic = String(req.body.topic || '').trim().slice(0, 40);
+    const allowDownload = req.body.allowDownload === false ? 0 : 1;
+    const allowSaveToNotes = req.body.allowSaveToNotes === false ? 0 : 1;
+    const isAd = req.body.isAd === true ? 1 : 0;
+    const backgroundColor = String(req.body.backgroundColor || '#ffffff').slice(0, 120);
+    const backgroundImage = String(req.body.backgroundImage || '').trim();
+    const trackUrl = String(req.body.trackUrl || '').trim();
+    const trackName = String(req.body.trackName || '').trim();
+    const trackArtist = String(req.body.trackArtist || '').trim().slice(0, 120);
+    const trackArtwork = String(req.body.trackArtwork || '').trim();
+    if (!body && !mediaUrl && !trackUrl) return res.status(400).json({ error: 'Post text, media or track is required' });
+    const requestedId = String(req.body.id || '').trim();
+    if (requestedId === 'demo-post') return res.status(400).json({ error: 'Demo post is disabled' });
+    const id = /^[A-Za-z0-9_-]{3,80}$/.test(requestedId) ? requestedId : createId('PST');
+    const createdAtRaw = String(req.body.createdAt || '').trim();
+    const createdAt = createdAtRaw && !Number.isNaN(Date.parse(createdAtRaw)) ? createdAtRaw : new Date().toISOString();
+    const authorName = String(req.body.authorName || user?.name || user?.email || 'Lumae').trim();
+    const authorHandle = String(req.body.authorHandle || user?.handle || '').replace(/^@/, '').trim();
+    const authorAvatar = String(req.body.authorAvatar || '').trim();
+    const authorProfileId = String(req.body.authorProfileId || '').trim();
+    db.get('SELECT id FROM posts WHERE id = ?', [id], (findErr, existing) => {
+      if (findErr) return res.status(500).json({ error: findErr.message });
+      if (existing) return res.json({ success: true, id, duplicate: true });
+      db.run(
+        `INSERT INTO posts (id, userId, authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, mediaType, mediaGallery, topic, allowDownload, allowSaveToNotes, isAd, backgroundColor, backgroundImage, trackUrl, trackName, trackArtist, trackArtwork, views, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, user?.id || '', authorName, authorHandle, authorAvatar, authorProfileId, body, mediaUrl, normalizedMediaType, mediaGallery, topic, allowDownload, allowSaveToNotes, isAd, backgroundColor, backgroundImage, trackUrl, trackName, trackArtist, trackArtwork, 0, createdAt],
+        (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+          res.json({ success: true, id });
+        }
+      );
+    });
+  });
+});
+
+app.post('/api/posts/:id/like', (req, res) => {
+  requireAuth(req, res, (user) => {
+    db.run('DELETE FROM post_dislikes WHERE postId = ? AND userId = ?', [req.params.id, user.id]);
+    db.get('SELECT 1 FROM post_likes WHERE postId = ? AND userId = ?', [req.params.id, user.id], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row) {
+        db.run('DELETE FROM post_likes WHERE postId = ? AND userId = ?', [req.params.id, user.id], () => res.json({ success: true, liked: false }));
+      } else {
+        db.run('INSERT INTO post_likes (postId, userId) VALUES (?, ?)', [req.params.id, user.id], (insertErr) => {
+          if (insertErr) return res.status(500).json({ error: insertErr.message });
+          res.json({ success: true, liked: true });
+        });
+      }
+    });
+  });
+});
+
+app.post('/api/posts/:id/dislike', (req, res) => {
+  requireAuth(req, res, (user) => {
+    db.get('SELECT 1 FROM post_dislikes WHERE postId = ? AND userId = ?', [req.params.id, user.id], (err, row) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (row) {
+        db.run('DELETE FROM post_dislikes WHERE postId = ? AND userId = ?', [req.params.id, user.id], () => res.json({ success: true, disliked: false }));
+      } else {
+        db.run('DELETE FROM post_likes WHERE postId = ? AND userId = ?', [req.params.id, user.id]);
+        db.run('INSERT OR REPLACE INTO post_dislikes (postId, userId) VALUES (?, ?)', [req.params.id, user.id], (insertErr) => {
+          if (insertErr) return res.status(500).json({ error: insertErr.message });
+          res.json({ success: true, disliked: true });
+        });
+      }
+    });
+  });
+});
+
+app.post('/api/posts/:id/view', (req, res) => {
+  db.run(
+    'UPDATE posts SET views = COALESCE(views, 0) + 1 WHERE id = ?',
+    [req.params.id],
+    function(err) {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!this.changes) return res.status(404).json({ error: 'Post not found' });
+      db.get('SELECT views FROM posts WHERE id = ?', [req.params.id], (findErr, row) => {
+        if (findErr) return res.status(500).json({ error: findErr.message });
+        res.json({ success: true, views: Number(row?.views || 0) });
+      });
+    }
+  );
+});
+
+app.delete('/api/posts/:id', (req, res) => {
+  requireAuth(req, res, (user) => {
+    db.get('SELECT userId FROM posts WHERE id = ?', [req.params.id], (err, post) => {
+      if (err) return res.status(500).json({ error: err.message });
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      if (post.userId !== user.id) return res.status(403).json({ error: 'You can delete only your own posts' });
+      db.serialize(() => {
+        db.run('DELETE FROM post_likes WHERE postId = ?', [req.params.id]);
+        db.run('DELETE FROM post_dislikes WHERE postId = ?', [req.params.id]);
+        db.run('DELETE FROM post_comments WHERE postId = ?', [req.params.id]);
+        db.run('DELETE FROM posts WHERE id = ?', [req.params.id], function(deleteErr) {
+          if (deleteErr) return res.status(500).json({ error: deleteErr.message });
+          res.json({ success: true });
+        });
+      });
+    });
+  });
+});
+
+app.post('/api/posts/:id/comments', (req, res) => {
+  requireAuth(req, res, (user) => {
+    const body = String(req.body.body || '').trim();
+    if (!body) return res.status(400).json({ error: 'Comment text is required' });
+    const requestedId = String(req.body.id || '').trim();
+    const id = /^[A-Za-z0-9_-]{3,80}$/.test(requestedId) ? requestedId : createId('COM');
+    const createdAtRaw = String(req.body.createdAt || '').trim();
+    const createdAt = createdAtRaw && !Number.isNaN(Date.parse(createdAtRaw)) ? createdAtRaw : new Date().toISOString();
+    const authorName = String(req.body.authorName || user.name || user.email).trim();
+    const authorHandle = String(req.body.authorHandle || user.handle || '').replace(/^@/, '').trim();
+    const authorAvatar = String(req.body.authorAvatar || '').trim();
+    db.get('SELECT userId FROM posts WHERE id = ?', [req.params.id], (postErr, post) => {
+      if (postErr) return res.status(500).json({ error: postErr.message });
+      if (!post) return res.status(404).json({ error: 'Post not found' });
+      db.get('SELECT id FROM post_comments WHERE id = ? AND userId = ?', [id, user.id], (findErr, existing) => {
+      if (findErr) return res.status(500).json({ error: findErr.message });
+      if (existing) return res.json({ success: true, id, duplicate: true });
+      db.run(
+        'INSERT INTO post_comments (id, postId, userId, authorName, authorHandle, authorAvatar, body, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, req.params.id, user.id, authorName, authorHandle, authorAvatar, body, createdAt],
+        (err) => {
+          if (err) return res.status(500).json({ error: err.message });
+          const respond = () => res.json({ success: true, id, createdAt });
+          if (!post.userId || post.userId === user.id) return respond();
+          db.run(
+            'INSERT INTO notifications (id, userId, type, postId, actorName, actorHandle, body, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [createId('NTF'), post.userId, 'post_comment', req.params.id, authorName, authorHandle, body, createdAt],
+            notifyErr => {
+              if (notifyErr) console.error('Could not save comment notification:', notifyErr.message);
+              respond();
+            }
+          );
+        }
+      );
+      });
+    });
+  });
+});
+
+app.get('/api/notifications', (req, res) => {
+  requireAuth(req, res, user => {
+    db.all(
+      'SELECT id, type, postId, actorName, actorHandle, body, createdAt, readAt FROM notifications WHERE userId = ? ORDER BY createdAt DESC LIMIT 50',
+      [user.id],
+      (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ notifications: rows, unread: rows.filter(row => !row.readAt).length });
+      }
+    );
+  });
+});
+
+app.post('/api/notifications/read', (req, res) => {
+  requireAuth(req, res, user => {
+    db.run('UPDATE notifications SET readAt = COALESCE(readAt, ?) WHERE userId = ?', [new Date().toISOString(), user.id], err => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true });
+    });
+  });
+});
+
+// DELETE profile
+app.delete('/api/profiles/:handle', (req, res) => {
+  const { handle } = req.params;
+  db.run('DELETE FROM profiles WHERE handle = ?', [handle], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else if (this.changes === 0) {
+      res.status(404).json({ error: 'Profile not found' });
+    } else {
+      res.json({ success: true, message: 'Profile deleted' });
+    }
+  });
+});
+
+// CHECK if handle exists
+app.get('/api/check/:handle', (req, res) => {
+  const { handle } = req.params;
+  db.get('SELECT id FROM profiles WHERE handle = ?', [handle], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+    } else {
+      res.json({ exists: !!row });
+    }
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`📍 Open http://localhost:${PORT}/index.html in your browser`);
+
+  // Keepalive — не даёт Render засыпать на бесплатном плане
+  const selfUrl = process.env.RENDER_EXTERNAL_URL || '';
+  if (selfUrl) {
+    setInterval(() => {
+      fetch(`${selfUrl}/api/posts`)
+        .then(() => console.log('Keepalive ping sent'))
+        .catch(() => {});
+    }, 10 * 60 * 1000); // каждые 10 минут
+  }
+});

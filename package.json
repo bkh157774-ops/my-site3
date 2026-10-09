@@ -2,11 +2,11 @@
   "name": "lumae-profiles",
   "version": "1.0.0",
   "description": "Profiles sharing platform",
-  "main": "server.js",
+  "main": "server (2).js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node \"server (2).js\"",
+    "dev": "node \"server (2).js\""
   },
   "dependencies": {
     "@netlify/blobs": "^8.2.0",

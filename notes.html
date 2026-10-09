@@ -902,6 +902,19 @@ html body.dark .mobile-nav-strip,html body.dark .nav-plus,html body.dark .nav-pi
 html body.dark .seg button.on{background:#f4f5f7!important;color:#17191f!important;}
 html body.dark #noteOv{background:rgba(0,0,0,.72)!important;}
 html body.dark #noteOv .modal.ne{background:#22252d!important;color:#f4f5f7!important;}
+/* Dark-theme contrast for calendar, which uses custom per-element light defaults. */
+html body.dark .cal-h h2,html body.dark .cal-w span,html body.dark .cal-day,
+html body.dark .cal-dh strong,html body.dark .k-empty { color:#f1f2f5!important; }
+html body.dark .cd { background:#20232a!important; border-color:#383c46!important; color:#f1f2f5!important; opacity:1!important; }
+html body.dark .cd.o { color:#9297a2!important; opacity:1!important; }
+html body.dark .cd.has { background:#292d36!important; border-color:#575d69!important; }
+html body.dark .cd.today { background:#30333c!important; border-color:#f1f2f5!important; }
+html body.dark .cd.sel { box-shadow:0 0 0 3px rgba(255,75,114,.65)!important; }
+html body.dark .cal-day { background:#1c1f26!important; border-color:#363a44!important; }
+html body.dark .cal-it { background:#282c34!important; color:#f1f2f5!important; }
+html body.dark .cal-it small { color:#b2b6c0!important; }
+html body.dark .cal-new { background:#f1f2f5!important; color:#17191f!important; }
+html body.dark .cal-b,html body.dark .cal-t { background:#22252d!important; color:#f4f5f7!important; }
 </style>
 </head>
 <body>
@@ -1635,6 +1648,7 @@ function applyHomeBackground(){
   const useDark=forcedDark||(!forcedLight&&!!t.dark&&!custom);
   document.body.classList.toggle('dark',useDark);
   document.body.setAttribute('data-theme',useDark?'dark':'light');
+  document.documentElement.setAttribute('data-theme',useDark?'dark':'light');
   document.documentElement.style.background=forcedDark&&!custom?'#0b0c0f':t.cs[0];
   document.body.style.background='none';
   m.innerHTML='';m.style.background=forcedDark&&!custom?'#0b0c0f':t.cs.length===1?t.cs[0]:themeCss(t);
@@ -1644,6 +1658,9 @@ function applyHomeBackground(){
   } else if(t.cs.length>1&&!t.dark){m.innerHTML='<div class="bgveil"></div>';}
   const tc=document.querySelector('meta[name=theme-color]');if(tc)tc.content=t.cs[0];
 }
+window.addEventListener('storage',event=>{
+  if(event.key==='lumae.settings.preferences.v1') applyHomeBackground();
+});
 function payWall(){alert('Этот фон доступен на платных тарифах. Сейчас у вас «Без подписки».');}
 function pickBg(id){
   const t=BG_THEMES.find(x=>x.id===id);

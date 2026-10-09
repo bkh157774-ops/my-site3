@@ -61,6 +61,8 @@
     'Свой фон':'Custom background','Без результатов поиска':'No search results','Загрузить аудио':'Upload audio','Загрузить музыку':'Upload music','Выбрать аудиофайл':'Choose audio file'
   };
   const reverse = new Map(Object.entries(translations).map(([ru, en]) => [en, ru]));
+  const reverseTranslations = Object.fromEntries(reverse);
+  let sortedTranslations = Object.entries(translations).sort((a, b) => b[0].length - a[0].length);
   const originalText = new WeakMap();
   const originalAttrs = new WeakMap();
   let language = 'English';
@@ -90,29 +92,36 @@
     const size = ({Small:'Маленький',Normal:'Обычный',Large:'Крупный'})[values['appearance.text']] || values['appearance.text'];
     if (document.body && size) document.body.style.fontSize = size === 'Крупный' ? '17px' : size === 'Маленький' ? '13px' : '';
   }
-  function translate(root) {
-    if (!root || !root.ownerDocument && root !== document) return;
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
+  function translateTextNode(node) {
+    if (!node || node.nodeType !== Node.TEXT_NODE || !node.parentElement) return;
       if (!originalText.has(node)) originalText.set(node, node.nodeValue);
       const initial = originalText.get(node);
       const trimmed = initial.trim();
-      if (!trimmed) continue;
+      if (!trimmed) return;
       let next = initial;
-      const dictionary = language === 'English' ? translations : Object.fromEntries(reverse);
+      const dictionary = language === 'English' ? translations : reverseTranslations;
       if (language === 'Русский' && !Object.keys(dictionary).some(source => initial.includes(source))) {
         if (node.nodeValue !== initial) node.nodeValue = initial;
-        continue;
+        return;
       }
-      for (const [source, target] of Object.entries(dictionary).sort((a, b) => b[0].length - a[0].length)) {
+      for (const [source, target] of sortedTranslations) {
         if (next.includes(source)) next = next.split(source).join(target);
       }
       if (next !== initial) {
         if (node.nodeValue !== next) node.nodeValue = next;
       }
+  }
+  function translate(root) {
+    if (!root || (root !== document && !root.ownerDocument)) return;
+    if (root.nodeType === Node.TEXT_NODE) {
+      translateTextNode(root);
+      return;
     }
-    const elements = root.nodeType === 1 ? [root, ...root.querySelectorAll('*')] : [...root.querySelectorAll('*')];
+    if (typeof root.querySelectorAll !== 'function') return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) translateTextNode(node);
+    const elements = root.nodeType === Node.ELEMENT_NODE ? [root, ...root.querySelectorAll('*')] : [...root.querySelectorAll('*')];
     for (const element of elements) {
       for (const attr of ['placeholder', 'title', 'aria-label']) {
         if (!element.hasAttribute?.(attr)) continue;
@@ -127,6 +136,8 @@
   }
   function setLanguage(next, persist = true) {
     language = next === 'Русский' ? 'Русский' : 'English';
+    sortedTranslations = Object.entries(language === 'English' ? translations : reverseTranslations)
+      .sort((a, b) => b[0].length - a[0].length);
     document.documentElement.lang = language === 'Русский' ? 'ru' : 'en';
     if (persist) {
       try {
@@ -149,8 +160,8 @@
     setLanguage(savedLanguage(), false);
     observer = new MutationObserver(records => {
       for (const record of records) {
-        if (record.type === 'childList') record.addedNodes.forEach(node => { if (node.nodeType === 1 || node.nodeType === 3) translate(node.parentElement || node); });
-        else if (record.type === 'characterData') translate(record.target.parentElement);
+        if (record.type === 'childList') record.addedNodes.forEach(node => { if (node.nodeType === 1 || node.nodeType === 3) translate(node); });
+        else if (record.type === 'characterData') translate(record.target);
       }
     });
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
